@@ -60,6 +60,8 @@ def show_message(screen: pygame.Surface, font: pygame.font.Font, lines: List[str
         for idx, line in enumerate(lines):
             text = font.render(line, True, pygame.Color("white"))
             screen.blit(text, (40, 40 + idx * 30))
+        prompt = font.render("Press SPACE to continue", True, pygame.Color("white"))
+        screen.blit(prompt, (40, screen.get_height() - 40))
         pygame.display.flip()
         clock.tick(30)
 
