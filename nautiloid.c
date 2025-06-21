@@ -5,6 +5,60 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef struct {
+    char const *name;
+    char const *target;
+    bool        melee;
+    char        _pad[3];
+    int         power;
+} Ability;
+
+typedef struct {
+    int strength;
+    int agility;
+    int wisdom;
+    int hp;
+} Attributes;
+
+typedef struct {
+    char const *name;
+    Ability const *abilities;
+    int ability_count;
+    char _pad[4];
+    Attributes attributes;
+} ClassInfo;
+
+typedef struct {
+    int x;
+    int y;
+    char name[64];
+    ClassInfo const *info;
+} Player;
+
+static Ability const fighter_abilities[] = {
+    {.name = "Strike", .target = "enemy", .melee = true, .power = 3},
+    {.name = "Power Attack", .target = "enemy", .melee = true, .power = 5},
+};
+
+static Ability const rogue_abilities[] = {
+    {.name = "Stab", .target = "enemy", .melee = true, .power = 3},
+    {.name = "Sneak Attack", .target = "enemy", .melee = true, .power = 4},
+};
+
+static Ability const mage_abilities[] = {
+    {.name = "Firebolt", .target = "enemy", .melee = false, .power = 4},
+    {.name = "Barrier", .target = "ally", .melee = false, .power = 3},
+};
+
+static ClassInfo const classes[] = {
+    {.name = "Fighter", .abilities = fighter_abilities, .ability_count = 2,
+     .attributes = {8, 4, 3, 12}},
+    {.name = "Rogue", .abilities = rogue_abilities, .ability_count = 2,
+     .attributes = {5, 8, 3, 10}},
+    {.name = "Mage", .abilities = mage_abilities, .ability_count = 2,
+     .attributes = {3, 5, 8, 8}},
+};
+
 static SDL_Texture *
 render_text(SDL_Renderer *renderer, TTF_Font *font, char const *text,
             SDL_Color color) {
@@ -118,6 +172,49 @@ menu_prompt(SDL_Renderer *renderer, TTF_Font *font, char const *question,
 }
 
 static void
+draw_humanoid(SDL_Renderer *renderer, int x, int y, SDL_Color color) {
+    SDL_Rect head  = {x - 5, y - 48, 10, 10};
+    SDL_Rect torso = {x - 4, y - 38, 8, 20};
+    SDL_Rect left_arm  = {x - 8, y - 38, 3, 15};
+    SDL_Rect right_arm = {x + 5, y - 38, 3, 15};
+    SDL_Rect left_leg  = {x - 4, y - 18, 3, 18};
+    SDL_Rect right_leg = {x + 1, y - 18, 3, 18};
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 255);
+    SDL_RenderFillRect(renderer, &head);
+    SDL_RenderFillRect(renderer, &torso);
+    SDL_RenderFillRect(renderer, &left_arm);
+    SDL_RenderFillRect(renderer, &right_arm);
+    SDL_RenderFillRect(renderer, &left_leg);
+    SDL_RenderFillRect(renderer, &right_leg);
+}
+
+static void
+draw_warrior(SDL_Renderer *renderer, int x, int y) {
+    draw_humanoid(renderer, x, y, (SDL_Color){255, 0, 0, 255});
+    SDL_SetRenderDrawColor(renderer, 192, 192, 192, 255);
+    SDL_RenderDrawLine(renderer, x + 6, y - 20, x + 10, y - 36);
+}
+
+static void
+draw_rogue(SDL_Renderer *renderer, int x, int y) {
+    draw_humanoid(renderer, x, y, (SDL_Color){34, 139, 34, 255});
+    SDL_Rect hood = {x - 6, y - 48, 12, 8};
+    SDL_SetRenderDrawColor(renderer, 0, 100, 0, 255);
+    SDL_RenderFillRect(renderer, &hood);
+    SDL_SetRenderDrawColor(renderer, 192, 192, 192, 255);
+    SDL_RenderDrawLine(renderer, x + 6, y - 20, x + 10, y - 30);
+}
+
+static void
+draw_mage(SDL_Renderer *renderer, int x, int y) {
+    draw_humanoid(renderer, x, y, (SDL_Color){0, 0, 128, 255});
+    SDL_SetRenderDrawColor(renderer, 160, 82, 45, 255);
+    SDL_RenderDrawLine(renderer, x + 6, y - 20, x + 6, y - 40);
+    SDL_RenderDrawLine(renderer, x + 6, y - 40, x + 6, y - 42);
+    SDL_RenderDrawPoint(renderer, x + 6, y - 42);
+}
+
+static void
 text_input(SDL_Renderer *renderer, TTF_Font *font, char const *prompt,
            char *buffer, int capacity) {
     buffer[0] = '\0';
@@ -192,15 +289,41 @@ int main(int argc, char *argv[]) {
 
     char name[64];
     text_input(renderer, font, "Enter your name:", name, (int)sizeof(name));
-    char const *classes[] = {"Fighter", "Rogue", "Mage"};
+    char const *class_names[] = {"Fighter", "Rogue", "Mage"};
     int class_idx =
-        menu_prompt(renderer, font, "Choose a class", classes,
-                    (int)(sizeof(classes) / sizeof(classes[0])));
+        menu_prompt(renderer, font, "Choose a class", class_names,
+                    (int)(sizeof(class_names) / sizeof(class_names[0])));
     static char buffer[128];
     snprintf(buffer, sizeof(buffer), "Welcome %s the %s!", name,
-             classes[class_idx]);
-    char const *lines[] = {buffer, "Press SPACE to quit"};
+             class_names[class_idx]);
+    char const *lines[] = {buffer, "Press SPACE to continue"};
     show_message(renderer, font, lines, 2);
+
+    Player player = {320, 240, "", &classes[class_idx]};
+    strncpy(player.name, name, sizeof(player.name) - 1);
+    bool running = true;
+    SDL_Event e;
+    while (running) {
+        while (SDL_PollEvent(&e)) {
+            if (e.type == SDL_QUIT) {
+                running = false;
+            }
+            if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
+                running = false;
+            }
+        }
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        if (strcmp(player.info->name, "Fighter") == 0) {
+            draw_warrior(renderer, player.x, player.y);
+        } else if (strcmp(player.info->name, "Rogue") == 0) {
+            draw_rogue(renderer, player.x, player.y);
+        } else {
+            draw_mage(renderer, player.x, player.y);
+        }
+        SDL_RenderPresent(renderer);
+        SDL_Delay(16);
+    }
 
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow  (window);
