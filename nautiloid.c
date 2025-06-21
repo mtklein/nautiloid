@@ -579,6 +579,16 @@ inventory_add_item(Player *player, char const *item) {
     player->items++;
 }
 
+static bool
+inventory_has_item(Player const *player, char const *item) {
+    for (int i = 0; i < player->items; ++i) {
+        if (0 == strcmp(player->inventory[i], item)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void
 show_inventory(SDL_Renderer *renderer, TTF_Font *font, Player const *player) {
     char const *lines[9];
@@ -629,15 +639,28 @@ npc_dismiss(Player *player, int index) {
     player->companion_count--;
 }
 
+static Room *
+find_room(Room rooms[ROOM_COUNT], char const *name) {
+    for (int i = 0; i < ROOM_COUNT; ++i) {
+        if (0 == strcmp(rooms[i].name, name)) {
+            return &rooms[i];
+        }
+    }
+    return NULL;
+}
+
 static void
 create_rooms(Room rooms[ROOM_COUNT]) {
     static Npc pod_npcs[] = {{200, 240, draw_familiar, familiar_dialog,
                               "Familiar", &classes[CLASS_BEAST], false,
                               false, {0}}};
+    static Chest pod_chests[] = {
+        {{280, 240, 32, 24}, false, {0}, "small key", "pod_key"}};
     static Prop pod_props[] = {{{260, 260, 20, 20}, "A broken glass pod"}};
     static Door pod_doors[] = {{{600, 220, 40, 40}, "Corridor", false, {0}}};
-    rooms[ROOM_POD_ROOM] = (Room){NULL, pod_props, pod_doors, pod_npcs,
-                                  "Pod Room", "circle", 0, 1, 1, 1};
+    rooms[ROOM_POD_ROOM] =
+        (Room){pod_chests, pod_props, pod_doors, pod_npcs, "Pod Room",
+               "circle", 1, 1, 1, 1};
 
     static Prop cor_props[] = {{{320, 240, 16, 16}, "A flickering wall torch"}};
     static Door cor_doors[] = {{{40, 220, 40, 40}, "Pod Room", false, {0}},
@@ -864,9 +887,40 @@ int main(int argc, char *argv[]) {
                     }
                     for (int i = 0; i < current->doors && !handled; ++i) {
                         if (SDL_HasIntersection(&pr, &current->door[i].rect)) {
-                            char const *msg[] = {"The door is locked."};
-                            show_message(renderer, font, msg, 1);
-                            handled = true;
+                            Door *door = &current->door[i];
+                            if (!door->open) {
+                                if (inventory_has_item(&player, "small key")) {
+                                    door->open = true;
+                                    char const *msg[] = {
+                                        "You unlock the door with the key."};
+                                    show_message(renderer, font, msg, 1);
+                                } else {
+                                    char const *msg[] = {"The door is locked."};
+                                    show_message(renderer, font, msg, 1);
+                                }
+                                handled = true;
+                            } else {
+                                Room *dest = find_room(rooms, door->dest);
+                                if (dest) {
+                                    Door *back = NULL;
+                                    for (int j = 0; j < dest->doors; ++j) {
+                                        if (0 == strcmp(dest->door[j].dest,
+                                                        current->name)) {
+                                            back = &dest->door[j];
+                                            break;
+                                        }
+                                    }
+                                    if (back) {
+                                        player.x = back->rect.x + back->rect.w / 2;
+                                        player.y = back->rect.y + back->rect.h / 2;
+                                    } else {
+                                        player.x = 320;
+                                        player.y = 240;
+                                    }
+                                    current = dest;
+                                }
+                                handled = true;
+                            }
                         }
                     }
                     for (int i = 0; i < current->props && !handled; ++i) {
