@@ -19,7 +19,8 @@
  * - Display a game_end summary after escaping
  * - Use SDL_image to load textured sprites
  * - Add pathfinding for NPC movement
- * - Expand Npc with name, class info and enemy/joined flags
+ * - Expand Npc with name, class info and enemy/joined flags - done
+ * - Allow NPCs to be dismissed from the party
  */
 
 typedef struct {
@@ -118,10 +119,15 @@ typedef void (*NpcDraw)(SDL_Renderer *, int, int);
 typedef void (*NpcDialog)(SDL_Renderer *, TTF_Font *);
 
 typedef struct Npc {
-    int       x;
-    int       y;
-    NpcDraw   draw;
-    NpcDialog dialog;
+    int               x;
+    int               y;
+    NpcDraw           draw;
+    NpcDialog         dialog;
+    char              name[32];
+    ClassInfo const   *info;
+    bool              joined;
+    bool              enemy;
+    char              _pad[6];
 } Npc;
 
 typedef struct {
@@ -561,6 +567,15 @@ update_companions(Player *player) {
     }
 }
 
+static void
+npc_join(Player *player, Npc *npc) {
+    if (player->companion_count < 4 && !npc->joined) {
+        player->companions[player->companion_count] = npc;
+        player->companion_count++;
+        npc->joined = true;
+    }
+}
+
 static char const *
 interaction_hint(Player const *player, Room const *room) {
     SDL_Rect pr = {player->x - 8, player->y - 48, 16, 48};
@@ -673,9 +688,12 @@ int main(int argc, char *argv[]) {
     Chest chest[] = {{{280, 240, 32, 24}, false, {0}}};
     Door door[]   = {{{500, 220, 40, 40}, false, {0}}};
     Prop  prop[]  = {{{260, 260, 20, 20}}};
-    Npc npc[] = {{200, 240, draw_familiar, familiar_dialog},
-                 {380, 220, draw_imp,      imp_dialog},
-                 {320, 180, draw_cleric,   cleric_dialog}};
+    Npc npc[] = {{200, 240, draw_familiar, familiar_dialog,
+                  "Familiar", &classes[CLASS_BEAST], false, false, {0}},
+                 {380, 220, draw_imp,      imp_dialog,
+                  "Imp", &classes[CLASS_DEMON], false, true, {0}},
+                 {320, 180, draw_cleric,   cleric_dialog,
+                  "Cleric", &classes[CLASS_HEALER], false, false, {0}}};
     SDL_Rect familiar_rect = {npc[0].x - 8, npc[0].y - 48, 16, 48};
     SDL_Rect imp_rect      = {npc[1].x - 8, npc[1].y - 48, 16, 48};
     SDL_Rect cleric_rect   = {npc[2].x - 8, npc[2].y - 48, 16, 48};
@@ -707,10 +725,12 @@ int main(int argc, char *argv[]) {
                         show_message(renderer, font, msg, 1);
                     } else if (SDL_HasIntersection(&pr, &familiar_rect)) {
                         familiar_dialog(renderer, font);
+                        npc_join(&player, &npc[0]);
                     } else if (SDL_HasIntersection(&pr, &imp_rect)) {
                         imp_dialog(renderer, font);
                     } else if (SDL_HasIntersection(&pr, &cleric_rect)) {
                         cleric_dialog(renderer, font);
+                        npc_join(&player, &npc[2]);
                     }
                 }
                 if (e.key.keysym.sym == SDLK_i) {
@@ -744,6 +764,12 @@ int main(int argc, char *argv[]) {
             player.y = 460;
         }
         update_companions(&player);
+        familiar_rect.x = npc[0].x - 8;
+        familiar_rect.y = npc[0].y - 48;
+        imp_rect.x      = npc[1].x - 8;
+        imp_rect.y      = npc[1].y - 48;
+        cleric_rect.x   = npc[2].x - 8;
+        cleric_rect.y   = npc[2].y - 48;
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
         draw_prop(renderer, prop[0].rect);
