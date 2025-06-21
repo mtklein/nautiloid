@@ -7,11 +7,7 @@
 #include <string.h>
 /*
  * TODO: port features from pygame_adventure.py
- * - Define class data for Healer, Beast and Demon
- * - Create NPC, Chest, Prop, Door and Room structs
  * - Implement create_rooms() to mirror Python rooms
- * - Expand Player with inventory, flags and companions
- * - Update companions with an update_companions() function
  * - Add face drawing and speaker options to the UI helpers
  * - Show floating damage numbers and health bars
  * - Implement combat_encounter() for turn-based fights
@@ -19,8 +15,11 @@
  * - Display a game_end summary after escaping
  * - Use SDL_image to load textured sprites
  * - Add pathfinding for NPC movement
- * - Expand Npc with name, class info and enemy/joined flags - done
  * - Allow NPCs to be dismissed from the party
+ * - Implement save/load functionality
+ * - Add sound effects using SDL_mixer
+ * - Support gamepad input
+ * - Display a mini map of explored rooms
  */
 
 typedef struct {
