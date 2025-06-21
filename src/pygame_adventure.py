@@ -123,7 +123,12 @@ def draw_imp(screen: pygame.Surface, x: int, y: int) -> None:
 def draw_rogue(screen: pygame.Surface, x: int, y: int) -> None:
     """Humanoid sprite with a dagger and hood."""
     draw_humanoid(screen, x, y, pygame.Color("olivedrab"))
-    pygame.draw.rect(screen, pygame.Color("darkolivegreen"), pygame.Rect(x - 6, y - 48, 12, 8))
+    pygame.draw.rect(
+        screen, pygame.Color("darkolivegreen"), pygame.Rect(x - 6, y - 48, 12, 8)
+    )
+    pygame.draw.rect(screen, pygame.Color("black"), pygame.Rect(x - 5, y - 46, 10, 3))
+    pygame.draw.rect(screen, pygame.Color("white"), pygame.Rect(x - 3, y - 46, 2, 2))
+    pygame.draw.rect(screen, pygame.Color("white"), pygame.Rect(x + 1, y - 46, 2, 2))
     pygame.draw.line(screen, pygame.Color("silver"), (x + 6, y - 20), (x + 10, y - 30), 2)
 
 
