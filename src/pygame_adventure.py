@@ -17,6 +17,24 @@ def draw_stick_figure(screen: pygame.Surface, x: int, y: int, color: pygame.Colo
     pygame.draw.line(screen, color, (x, y + 16), (x + 8, y + 24), 2)
 
 
+def draw_warrior(screen: pygame.Surface, x: int, y: int) -> None:
+    """Stick figure with a small sword."""
+    draw_stick_figure(screen, x, y, pygame.Color("red"))
+    pygame.draw.line(screen, pygame.Color("silver"), (x + 6, y + 12), (x + 16, y + 2), 2)
+
+
+def draw_cleric(screen: pygame.Surface, x: int, y: int) -> None:
+    """Stick figure with a holy symbol."""
+    draw_stick_figure(screen, x, y, pygame.Color("yellow"))
+    pygame.draw.line(screen, pygame.Color("white"), (x, y + 5), (x, y - 10), 2)
+    pygame.draw.line(screen, pygame.Color("white"), (x - 4, y - 2), (x + 4, y - 2), 2)
+
+
+def draw_familiar(screen: pygame.Surface, x: int, y: int) -> None:
+    """Simple blob for the familiar."""
+    pygame.draw.circle(screen, pygame.Color("cyan"), (x, y), 6)
+
+
 def draw_chest(screen: pygame.Surface, rect: pygame.Rect, opened: bool) -> None:
     pygame.draw.rect(screen, pygame.Color("sienna"), rect, 2)
     if opened:
@@ -27,6 +45,25 @@ def draw_chest(screen: pygame.Surface, rect: pygame.Rect, opened: bool) -> None:
 def draw_door(screen: pygame.Surface, rect: pygame.Rect) -> None:
     pygame.draw.rect(screen, pygame.Color("gray"), rect, 2)
     pygame.draw.line(screen, pygame.Color("gray"), (rect.centerx, rect.top), (rect.centerx, rect.bottom), 2)
+
+
+def draw_room_bounds(screen: pygame.Surface, shape: str) -> None:
+    color = pygame.Color("darkblue")
+    if shape == "circle":
+        pygame.draw.ellipse(screen, color, pygame.Rect(100, 80, 440, 320), 2)
+    elif shape == "wide":
+        pygame.draw.rect(screen, color, pygame.Rect(40, 200, 560, 80), 2)
+    elif shape == "tall":
+        pygame.draw.rect(screen, color, pygame.Rect(260, 40, 120, 400), 2)
+    elif shape == "control":
+        pygame.draw.polygon(
+            screen,
+            color,
+            [(320, 60), (380, 120), (380, 360), (320, 420), (260, 360), (260, 120)],
+            2,
+        )
+    else:
+        pygame.draw.rect(screen, color, pygame.Rect(120, 100, 400, 280), 2)
 
 
 @dataclass
@@ -42,7 +79,14 @@ class NPC:
         return pygame.Rect(self.x - 16, self.y - 16, 32, 32)
 
     def draw(self, screen: pygame.Surface) -> None:
-        draw_stick_figure(screen, self.x, self.y, self.color)
+        if self.name == "Warrior":
+            draw_warrior(screen, self.x, self.y)
+        elif self.name == "Cleric":
+            draw_cleric(screen, self.x, self.y)
+        elif self.name == "Familiar":
+            draw_familiar(screen, self.x, self.y)
+        else:
+            draw_stick_figure(screen, self.x, self.y, self.color)
 
 
 def show_message(screen: pygame.Surface, font: pygame.font.Font, lines: List[str]) -> None:
@@ -89,6 +133,33 @@ def menu_prompt(screen: pygame.Surface, font: pygame.font.Font, question: str, o
         pygame.display.flip()
         clock.tick(30)
     return choice
+
+
+def text_input(screen: pygame.Surface, font: pygame.font.Font, prompt: str) -> str:
+    """Simple text entry field."""
+    clock = pygame.time.Clock()
+    text = ""
+    done = False
+    while not done:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    done = True
+                elif event.key == pygame.K_BACKSPACE:
+                    text = text[:-1]
+                else:
+                    text += event.unicode
+        screen.fill((0, 0, 0))
+        p = font.render(prompt, True, pygame.Color("white"))
+        screen.blit(p, (40, 40))
+        t = font.render(text, True, pygame.Color("white"))
+        screen.blit(t, (40, 80))
+        pygame.display.flip()
+        clock.tick(30)
+    return text
 
 
 def familiar_dialog(screen: pygame.Surface, font: pygame.font.Font) -> None:
@@ -151,6 +222,8 @@ class Door:
 class Player:
     x: int
     y: int
+    name: str = ""
+    char_class: str = ""
     companions: List[NPC] = field(default_factory=list)
     inventory: List[str] = field(default_factory=list)
     flags: Dict[str, bool] = field(default_factory=dict)
@@ -162,12 +235,26 @@ class Player:
         draw_stick_figure(screen, self.x, self.y, pygame.Color("white"))
 
 
+def update_companions(player: Player) -> None:
+    """Move companions toward the entity ahead of them."""
+    leader_x, leader_y = player.x, player.y
+    for comp in player.companions:
+        dx = leader_x - comp.x
+        dy = leader_y - comp.y
+        dist = (dx * dx + dy * dy) ** 0.5
+        if dist > 1:
+            comp.x += int(0.2 * dx)
+            comp.y += int(0.2 * dy)
+        leader_x, leader_y = comp.x, comp.y
+
+
 @dataclass
 class Room:
     name: str
     npcs: List[NPC]
     chests: List[Chest]
     doors: List[Door]
+    shape: str = "square"
 
 
 def create_rooms() -> Dict[str, Room]:
@@ -178,6 +265,7 @@ def create_rooms() -> Dict[str, Room]:
         [NPC("Familiar", pygame.Color("cyan"), 200, 240, familiar_dialog)],
         [],
         [Door(pygame.Rect(600, 220, 40, 40), "Corridor")],
+        "circle",
     )
 
     rooms["Corridor"] = Room(
@@ -190,20 +278,23 @@ def create_rooms() -> Dict[str, Room]:
             Door(pygame.Rect(300, 380, 40, 40), "Storage"),
             Door(pygame.Rect(600, 220, 40, 40), "Control Room"),
         ],
+        "wide",
     )
 
     rooms["Brig"] = Room(
         "Brig",
         [NPC("Warrior", pygame.Color("red"), 320, 240, warrior_dialog)],
         [],
-        [Door(pygame.Rect(40, 220, 40, 40), "Corridor")],
+        [Door(pygame.Rect(300, 380, 40, 40), "Corridor")],
+        "square",
     )
 
     rooms["Storage"] = Room(
         "Storage",
         [],
         [Chest(pygame.Rect(320, 240, 32, 24), "a healing salve", "storage_chest_opened")],
-        [Door(pygame.Rect(40, 220, 40, 40), "Corridor")],
+        [Door(pygame.Rect(300, 60, 40, 40), "Corridor")],
+        "tall",
     )
 
     rooms["Control Room"] = Room(
@@ -214,6 +305,7 @@ def create_rooms() -> Dict[str, Room]:
             Door(pygame.Rect(40, 220, 40, 40), "Corridor"),
             Door(pygame.Rect(600, 220, 40, 40), "Escape Pod"),
         ],
+        "control",
     )
 
     rooms["Escape Pod"] = Room(
@@ -221,6 +313,7 @@ def create_rooms() -> Dict[str, Room]:
         [],
         [],
         [],
+        "square",
     )
 
     return rooms
@@ -246,9 +339,10 @@ def main() -> None:
     font = pygame.font.SysFont(None, 28)
     clock = pygame.time.Clock()
 
-    name = input("Enter your character's name: ")
-    char_class = input("Choose a class (Fighter/Rogue/Mage): ")
-    player = Player(320, 240)
+    name = text_input(screen, font, "Enter your name:")
+    class_idx = menu_prompt(screen, font, "Choose a class", ["Fighter", "Rogue", "Mage"])
+    char_class = ["Fighter", "Rogue", "Mage"][class_idx]
+    player = Player(320, 240, name=name, char_class=char_class)
 
     rooms = create_rooms()
     current = rooms["Pod Room"]
@@ -264,13 +358,18 @@ def main() -> None:
                 # doors
                 for door in current.doors:
                     if pr.colliderect(door.rect):
+                        dest_room = rooms[door.dest]
                         if door.dest == "Escape Pod":
-                            current = rooms[door.dest]
+                            current = dest_room
                             game_end(screen, font, player)
                             running = False
                         else:
-                            player.x, player.y = 320, 240
-                            current = rooms[door.dest]
+                            back = next((d for d in dest_room.doors if d.dest == current.name), None)
+                            if back:
+                                player.x, player.y = back.rect.center
+                            else:
+                                player.x, player.y = 320, 240
+                            current = dest_room
                         break
                 # chests
                 for chest in current.chests:
@@ -300,8 +399,10 @@ def main() -> None:
             player.y += 4
         player.x = max(20, min(620, player.x))
         player.y = max(20, min(460, player.y))
+        update_companions(player)
 
         screen.fill((0, 0, 0))
+        draw_room_bounds(screen, current.shape)
         for door in current.doors:
             door.draw(screen)
         for chest in current.chests:
