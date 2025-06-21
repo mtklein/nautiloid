@@ -50,6 +50,43 @@ typedef struct {
     ClassInfo const *info;
 } Player;
 
+typedef struct {
+    SDL_Rect rect;
+    bool     opened;
+    char     _pad[3];
+} Chest;
+
+typedef struct {
+    SDL_Rect rect;
+} Prop;
+
+typedef struct {
+    SDL_Rect rect;
+    bool     open;
+    char     _pad[3];
+} Door;
+
+typedef void (*NpcDraw)(SDL_Renderer *, int, int);
+typedef void (*NpcDialog)(SDL_Renderer *, TTF_Font *);
+
+typedef struct {
+    int       x;
+    int       y;
+    NpcDraw   draw;
+    NpcDialog dialog;
+} Npc;
+
+typedef struct {
+    Chest *chest;
+    int    chests;
+    Prop  *prop;
+    int    props;
+    Door  *door;
+    int    doors;
+    Npc   *npc;
+    int    npcs;
+} Room;
+
 static Ability const fighter_abilities[] = {
     {.name = "Strike", .target = "enemy", .melee = true, .power = 3},
     {.name = "Power Attack", .target = "enemy", .melee = true, .power = 5},
@@ -425,19 +462,15 @@ int main(int argc, char *argv[]) {
 
     Player player = {320, 240, "", &classes[class_idx]};
     strncpy(player.name, name, sizeof(player.name) - 1);
-    SDL_Rect chest = {280, 240, 32, 24};
-    bool chest_open = false;
-    SDL_Rect door = {500, 220, 40, 40};
-    SDL_Rect prop = {260, 260, 20, 20};
-    int familiar_x = 200;
-    int familiar_y = 240;
-    int imp_x      = 380;
-    int imp_y      = 220;
-    int cleric_x   = 320;
-    int cleric_y   = 180;
-    SDL_Rect familiar_rect = {familiar_x - 8, familiar_y - 48, 16, 48};
-    SDL_Rect imp_rect      = {imp_x - 8, imp_y - 48, 16, 48};
-    SDL_Rect cleric_rect   = {cleric_x - 8, cleric_y - 48, 16, 48};
+    Chest chest[] = {{{280, 240, 32, 24}, false, {0}}};
+    Door door[]   = {{{500, 220, 40, 40}, false, {0}}};
+    Prop  prop[]  = {{{260, 260, 20, 20}}};
+    Npc npc[] = {{200, 240, draw_familiar, familiar_dialog},
+                 {380, 220, draw_imp,      imp_dialog},
+                 {320, 180, draw_cleric,   cleric_dialog}};
+    SDL_Rect familiar_rect = {npc[0].x - 8, npc[0].y - 48, 16, 48};
+    SDL_Rect imp_rect      = {npc[1].x - 8, npc[1].y - 48, 16, 48};
+    SDL_Rect cleric_rect   = {npc[2].x - 8, npc[2].y - 48, 16, 48};
     bool running = true;
     SDL_Event e;
     while (running) {
@@ -451,14 +484,15 @@ int main(int argc, char *argv[]) {
                 }
                 if (e.key.keysym.sym == SDLK_e) {
                     SDL_Rect pr = {player.x - 8, player.y - 48, 16, 48};
-                    if (!chest_open && SDL_HasIntersection(&pr, &chest)) {
-                        chest_open = true;
+                    if (!chest[0].opened &&
+                        SDL_HasIntersection(&pr, &chest[0].rect)) {
+                        chest[0].opened = true;
                         char const *msg[] = {"You find a rusty dagger!"};
                         show_message(renderer, font, msg, 1);
-                    } else if (SDL_HasIntersection(&pr, &door)) {
+                    } else if (SDL_HasIntersection(&pr, &door[0].rect)) {
                         char const *msg[] = {"The door is locked."};
                         show_message(renderer, font, msg, 1);
-                    } else if (SDL_HasIntersection(&pr, &prop)) {
+                    } else if (SDL_HasIntersection(&pr, &prop[0].rect)) {
                         char const *msg[] = {"A broken glass pod"};
                         show_message(renderer, font, msg, 1);
                     } else if (SDL_HasIntersection(&pr, &familiar_rect)) {
@@ -498,12 +532,12 @@ int main(int argc, char *argv[]) {
         }
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-        draw_prop(renderer, prop);
-        draw_door(renderer, door);
-        draw_chest(renderer, chest, chest_open);
-        draw_familiar(renderer, familiar_x, familiar_y);
-        draw_imp(renderer, imp_x, imp_y);
-        draw_cleric(renderer, cleric_x, cleric_y);
+        draw_prop(renderer, prop[0].rect);
+        draw_door(renderer, door[0].rect);
+        draw_chest(renderer, chest[0].rect, chest[0].opened);
+        draw_familiar(renderer, npc[0].x, npc[0].y);
+        draw_imp(renderer, npc[1].x, npc[1].y);
+        draw_cleric(renderer, npc[2].x, npc[2].y);
         if (strcmp(player.info->name, "Fighter") == 0) {
             draw_warrior(renderer, player.x, player.y);
         } else if (strcmp(player.info->name, "Rogue") == 0) {
