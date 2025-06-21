@@ -495,15 +495,16 @@ static void
 draw_mage(SDL_Renderer *renderer, int x, int y) {
     draw_humanoid(renderer, x, y, (SDL_Color){106, 90, 205, 255});
     SDL_SetRenderDrawColor(renderer, 128, 0, 128, 255);
-    for (int i = 0; i < 12; ++i) {
-        int dx = i / 2;
+    int const hat_lines = 12;
+    for (int i = 0; i < hat_lines; ++i) {
+        int dx = (hat_lines - 1 - i) / 2;
         SDL_RenderDrawLine(renderer, x - dx, y - 48 - i,
                            x + dx, y - 48 - i);
     }
     SDL_SetRenderDrawColor(renderer, 160, 82, 45, 255);
-    SDL_RenderDrawLine(renderer, x + 6, y - 20, x + 6, y - 40);
-    SDL_RenderDrawLine(renderer, x + 6, y - 40, x + 6, y - 42);
-    SDL_RenderDrawPoint(renderer, x + 6, y - 42);
+    SDL_RenderDrawLine(renderer, x + 6, y - 20, x + 6, y - 42);
+    SDL_Rect knob = {x + 4, y - 46, 4, 4};
+    SDL_RenderFillRect(renderer, &knob);
 }
 
 static void
