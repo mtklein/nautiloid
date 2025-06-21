@@ -239,24 +239,30 @@ class NPC:
     def rect(self) -> pygame.Rect:
         return pygame.Rect(self.x - 8, self.y - 48, 16, 48)
 
-    def draw(self, screen: pygame.Surface) -> None:
+    def draw(self, screen: pygame.Surface, pos: Optional[tuple[int, int]] = None) -> None:
+        x, y = pos if pos else (self.x, self.y)
         if self.name == "Familiar":
-            draw_familiar(screen, self.x, self.y)
+            draw_familiar(screen, x, y)
         elif self.name == "Imp":
-            draw_imp(screen, self.x, self.y)
+            draw_imp(screen, x, y)
         elif self.char_class == "Fighter":
-            draw_warrior(screen, self.x, self.y)
+            draw_warrior(screen, x, y)
         elif self.char_class == "Healer":
-            draw_cleric(screen, self.x, self.y)
+            draw_cleric(screen, x, y)
         elif self.char_class == "Rogue":
-            draw_rogue(screen, self.x, self.y)
+            draw_rogue(screen, x, y)
         elif self.char_class == "Mage":
-            draw_mage(screen, self.x, self.y)
+            draw_mage(screen, x, y)
         else:
-            draw_humanoid(screen, self.x, self.y, self.color)
+            draw_humanoid(screen, x, y, self.color)
 
 
-def show_message(screen: pygame.Surface, font: pygame.font.Font, lines: List[str]) -> None:
+def show_message(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    lines: List[str],
+    draw_bg: Optional[callable] = None,
+) -> None:
     """Display message lines until SPACE pressed."""
     clock = pygame.time.Clock()
     waiting = True
@@ -268,6 +274,8 @@ def show_message(screen: pygame.Surface, font: pygame.font.Font, lines: List[str
             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                 waiting = False
         screen.fill((0, 0, 0))
+        if draw_bg:
+            draw_bg()
         draw_text_box(screen, font, lines + ["Press SPACE to continue"])
         pygame.display.flip()
         clock.tick(30)
@@ -280,6 +288,7 @@ def menu_prompt(
     options: List[str],
     speaker: Optional[str] = None,
     face: Optional[pygame.Surface] = None,
+    draw_bg: Optional[callable] = None,
 ) -> int:
     """Display a numbered choice menu and return chosen index."""
     clock = pygame.time.Clock()
@@ -295,6 +304,8 @@ def menu_prompt(
                     if idx < len(options):
                         choice = idx
         screen.fill((0, 0, 0))
+        if draw_bg:
+            draw_bg()
         lines = [question] + [f"{i + 1}. {opt}" for i, opt in enumerate(options)]
         draw_text_box(screen, font, lines, speaker, face)
         pygame.display.flip()
@@ -302,7 +313,12 @@ def menu_prompt(
     return choice
 
 
-def text_input(screen: pygame.Surface, font: pygame.font.Font, prompt: str) -> str:
+def text_input(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    prompt: str,
+    draw_bg: Optional[callable] = None,
+) -> str:
     """Simple text entry field."""
     clock = pygame.time.Clock()
     text = ""
@@ -320,6 +336,8 @@ def text_input(screen: pygame.Surface, font: pygame.font.Font, prompt: str) -> s
                 else:
                     text += event.unicode
         screen.fill((0, 0, 0))
+        if draw_bg:
+            draw_bg()
         draw_text_box(screen, font, [prompt, text])
         pygame.display.flip()
         clock.tick(30)
@@ -433,15 +451,16 @@ class Player:
     def rect(self) -> pygame.Rect:
         return pygame.Rect(self.x - 8, self.y - 48, 16, 48)
 
-    def draw(self, screen: pygame.Surface) -> None:
+    def draw(self, screen: pygame.Surface, pos: Optional[tuple[int, int]] = None) -> None:
+        x, y = pos if pos else (self.x, self.y)
         if self.char_class == "Fighter":
-            draw_warrior(screen, self.x, self.y)
+            draw_warrior(screen, x, y)
         elif self.char_class == "Rogue":
-            draw_rogue(screen, self.x, self.y)
+            draw_rogue(screen, x, y)
         elif self.char_class == "Mage":
-            draw_mage(screen, self.x, self.y)
+            draw_mage(screen, x, y)
         else:
-            draw_humanoid(screen, self.x, self.y, pygame.Color("white"))
+            draw_humanoid(screen, x, y, pygame.Color("white"))
 
 
 def update_companions(player: Player) -> None:
@@ -464,6 +483,7 @@ def float_number(
     text: str,
     color: pygame.Color,
     pos: tuple[int, int],
+    draw_bg: Optional[callable] = None,
 ) -> None:
     """Show text box with lines and a floating number at pos."""
     clock = pygame.time.Clock()
@@ -473,6 +493,8 @@ def float_number(
                 pygame.quit()
                 sys.exit()
         screen.fill((0, 0, 0))
+        if draw_bg:
+            draw_bg()
         draw_text_box(screen, font, lines)
         rise_y = pos[1] - i
         num_surf = font.render(text, True, color)
@@ -510,6 +532,14 @@ def combat_encounter(screen: pygame.Surface, font: pygame.font.Font, player: Pla
 
     clock = pygame.time.Clock()
 
+    def draw_fight() -> None:
+        screen.fill((0, 0, 0))
+        for combatant in combatants:
+            if hp[combatant] > 0:
+                x, y = positions[combatant]
+                combatant.draw(screen, (x, y))
+                draw_health_bar(screen, (x, y), hp[combatant], combatant.attributes.hp)
+
     while hp[player] > 0 and any(hp[e] > 0 for e in enemies):
         order = sorted(combatants, key=lambda c: (c.attributes.agility + random.randint(0, 2)), reverse=True)
 
@@ -524,12 +554,7 @@ def combat_encounter(screen: pygame.Surface, font: pygame.font.Font, player: Pla
                     pygame.quit()
                     sys.exit()
 
-            screen.fill((0, 0, 0))
-            for combatant in combatants:
-                if hp[combatant] > 0:
-                    x, y = positions[combatant]
-                    combatant.draw(screen)
-                    draw_health_bar(screen, (x, y), hp[combatant], combatant.attributes.hp)
+            draw_fight()
             pygame.display.flip()
             clock.tick(30)
 
@@ -541,18 +566,19 @@ def combat_encounter(screen: pygame.Surface, font: pygame.font.Font, player: Pla
                     [ab.name for ab in player.abilities],
                     player.name,
                     get_face_surface(player),
+                    draw_bg=draw_fight,
                 )
                 ability = player.abilities[idx]
                 targets = enemies if ability.target == "enemy" else allies
                 living = [t for t in targets if hp[t] > 0]
                 tnames = [t.name for t in living]
-                tidx = 0 if len(living) == 1 else menu_prompt(screen, font, "Choose target", tnames)
+                tidx = 0 if len(living) == 1 else menu_prompt(screen, font, "Choose target", tnames, draw_bg=draw_fight)
                 target = living[tidx]
 
                 if ability.melee:
                     dx = positions[target][0] - positions[actor][0]
                     if abs(dx) > 120:
-                        show_message(screen, font, ["Too far away!"])
+                        show_message(screen, font, ["Too far away!"], draw_bg=draw_fight)
                         continue
                 atk_attr = ATTACK_ATTRIBUTE.get(actor.char_class, "strength")
                 def_attr = DEFENSE_ATTRIBUTE.get(target.char_class, "strength")
@@ -563,10 +589,10 @@ def combat_encounter(screen: pygame.Surface, font: pygame.font.Font, player: Pla
                     dmg *= 2
                 if ability.target == "enemy":
                     hp[target] -= dmg
-                    float_number(screen, font, [f"{actor.name} uses {ability.name}!"], f"-{dmg}", pygame.Color("white"), positions[target])
+                    float_number(screen, font, [f"{actor.name} uses {ability.name}!"], f"-{dmg}", pygame.Color("white"), positions[target], draw_bg=draw_fight)
                 else:
                     hp[target] = min(target.attributes.hp, hp[target] + dmg)
-                    float_number(screen, font, [f"{actor.name} uses {ability.name}!"], f"+{dmg}", pygame.Color("green"), positions[target])
+                    float_number(screen, font, [f"{actor.name} uses {ability.name}!"], f"+{dmg}", pygame.Color("green"), positions[target], draw_bg=draw_fight)
             else:
                 if actor in enemies:
                     ability = actor.abilities[0] if actor.abilities else Ability("Attack", "enemy", 2, True)
@@ -577,7 +603,7 @@ def combat_encounter(screen: pygame.Surface, font: pygame.font.Font, player: Pla
                     defense_val = getattr(target.attributes, def_attr)
                     dmg = max(1, attack_val - defense_val // 2)
                     hp[target] -= dmg
-                    float_number(screen, font, [f"{actor.name} attacks!"], f"-{dmg}", pygame.Color("red"), positions[target])
+                    float_number(screen, font, [f"{actor.name} attacks!"], f"-{dmg}", pygame.Color("red"), positions[target], draw_bg=draw_fight)
                 else:  # companion
                     ability = actor.abilities[0] if actor.abilities else Ability("Strike", "enemy", 2, True)
                     target = next((e for e in enemies if hp[e] > 0), None)
@@ -589,13 +615,13 @@ def combat_encounter(screen: pygame.Surface, font: pygame.font.Font, player: Pla
                     defense_val = getattr(target.attributes, def_attr)
                     dmg = max(1, attack_val - defense_val // 2)
                     hp[target] -= dmg
-                    float_number(screen, font, [f"{actor.name} attacks!"], f"-{dmg}", pygame.Color("white"), positions[target])
+                    float_number(screen, font, [f"{actor.name} attacks!"], f"-{dmg}", pygame.Color("white"), positions[target], draw_bg=draw_fight)
 
     if hp[player] > 0:
-        show_message(screen, font, ["You are victorious!"])
+        show_message(screen, font, ["You are victorious!"], draw_bg=draw_fight)
         return True
     else:
-        show_message(screen, font, ["You were defeated..."])
+        show_message(screen, font, ["You were defeated..."], draw_bg=draw_fight)
         return False
 
 
