@@ -6,3 +6,7 @@
 - Place the pointer `*` next to the variable name and express const-ness on pointed-to values, e.g. `static void const *foo`.
 - Name arrays of foo values `foo` and the number of entries `foos`. Count bytes with `size_t` and other quantities with `int`.
 - Use vertical and horizontal spacing to align related code so that similar things look similar.
+- Sort `#include` directives alphabetically within their groups.
+- Prefer descriptive variable names like `window` instead of abbreviations.
+- Put one statement on each line rather than chaining them together.
+- Write constants on the left side of comparisons, e.g. `0 != foo()`.
