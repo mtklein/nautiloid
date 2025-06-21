@@ -7,7 +7,6 @@
 #include <string.h>
 /*
  * TODO: port features from pygame_adventure.py
- * - Implement create_rooms() to mirror Python rooms
  * - Show floating damage numbers and health bars
  * - Implement combat_encounter() for turn-based fights
  * - Support moving between rooms and interacting with objects
@@ -55,6 +54,16 @@ typedef enum {
 } ClassId;
 #define PLAYABLE_CLASS_COUNT 4
 
+typedef enum {
+    ROOM_POD_ROOM,
+    ROOM_CORRIDOR,
+    ROOM_BRIG,
+    ROOM_STORAGE,
+    ROOM_CONTROL_ROOM,
+    ROOM_ESCAPE_POD,
+    ROOM_COUNT
+} RoomId;
+
 typedef struct {
     char const *name;
     Ability const *abilities;
@@ -86,19 +95,23 @@ typedef struct {
 } Player;
 
 typedef struct {
-    SDL_Rect rect;
-    bool     opened;
-    char     _pad[3];
+    SDL_Rect    rect;
+    bool        opened;
+    char        _pad[7];
+    char const *item;
+    char const *flag;
 } Chest;
 
 typedef struct {
-    SDL_Rect rect;
+    SDL_Rect    rect;
+    char const *desc;
 } Prop;
 
 typedef struct {
-    SDL_Rect rect;
-    bool     open;
-    char     _pad[3];
+    SDL_Rect    rect;
+    char const *dest;
+    bool        open;
+    char        _pad[7];
 } Door;
 
 typedef void (*NpcDraw)(SDL_Renderer *, int, int);
@@ -117,14 +130,16 @@ typedef struct Npc {
 } Npc;
 
 typedef struct {
-    Chest *chest;
-    Prop  *prop;
-    Door  *door;
-    Npc   *npc;
-    int    chests;
-    int    props;
-    int    doors;
-    int    npcs;
+    Chest      *chest;
+    Prop       *prop;
+    Door       *door;
+    Npc        *npc;
+    char const *name;
+    char const *shape;
+    int         chests;
+    int         props;
+    int         doors;
+    int         npcs;
 } Room;
 
 static Ability const fighter_abilities[] = {
@@ -496,6 +511,32 @@ imp_dialog(SDL_Renderer *renderer, TTF_Font *font, Npc *npc) {
 }
 
 static void
+warrior_dialog(SDL_Renderer *renderer, TTF_Font *font, Npc *npc) {
+    SDL_Texture *face = npc_face(renderer, npc);
+    char const *opts[] = {"\"What's your name?\"",
+                           "\"Stick with me, we can escape.\"",
+                           "\"Enough talk.\""};
+    while (1) {
+        int idx = menu_prompt(renderer, font,
+                              "The warrior wipes ichor from his blade.", opts,
+                              3, npc->name, face);
+        if (idx == 0) {
+            char const *msg[] =
+                {"\"Call me whatever you like. Let's just survive,\" he grunts."};
+            show_message(renderer, font, msg, 1);
+        } else if (idx == 1) {
+            char const *msg[] = {"He nods. 'Lead the way.'"};
+            show_message(renderer, font, msg, 1);
+        } else {
+            char const *msg[] = {"He falls in behind you, ready for battle."};
+            show_message(renderer, font, msg, 1);
+            break;
+        }
+    }
+    SDL_DestroyTexture(face);
+}
+
+static void
 text_input(SDL_Renderer *renderer, TTF_Font *font, char const *prompt,
            char *buffer, int capacity) {
     buffer[0] = '\0';
@@ -586,6 +627,71 @@ npc_dismiss(Player *player, int index) {
         player->companions[i] = player->companions[i + 1];
     }
     player->companion_count--;
+}
+
+static void
+create_rooms(Room rooms[ROOM_COUNT]) {
+    static Npc pod_npcs[] = {{200, 240, draw_familiar, familiar_dialog,
+                              "Familiar", &classes[CLASS_BEAST], false,
+                              false, {0}}};
+    static Prop pod_props[] = {{{260, 260, 20, 20}, "A broken glass pod"}};
+    static Door pod_doors[] = {{{600, 220, 40, 40}, "Corridor", false, {0}}};
+    rooms[ROOM_POD_ROOM] = (Room){NULL, pod_props, pod_doors, pod_npcs,
+                                  "Pod Room", "circle", 0, 1, 1, 1};
+
+    static Prop cor_props[] = {{{320, 240, 16, 16}, "A flickering wall torch"}};
+    static Door cor_doors[] = {{{40, 220, 40, 40}, "Pod Room", false, {0}},
+                               {{300, 60, 40, 40}, "Brig", false, {0}},
+                               {{300, 380, 40, 40}, "Storage", false, {0}},
+                               {{600, 220, 40, 40}, "Control Room", false,
+                                {0}}};
+    rooms[ROOM_CORRIDOR] =
+        (Room){NULL, cor_props, cor_doors, NULL, "Corridor", "wide", 0, 1, 4, 0};
+
+    static Npc brig_npcs[] = {{320, 240, draw_warrior, warrior_dialog,
+                               "Warrior", &classes[CLASS_FIGHTER], false,
+                               false, {0}},
+                              {380, 220, draw_imp, imp_dialog, "Imp",
+                               &classes[CLASS_DEMON], false, true, {0}},
+                              {300, 200, draw_imp, imp_dialog, "Imp",
+                               &classes[CLASS_DEMON], false, true, {0}},
+                              {340, 260, draw_imp, imp_dialog, "Imp",
+                               &classes[CLASS_DEMON], false, true, {0}}};
+    static Chest brig_chests[] = {
+        {{280, 240, 32, 24}, false, {0}, "an iron sword", "brig_sword"}};
+    static Prop brig_props[] = {{{360, 260, 16, 16}, "Chains hang from the wall"}};
+    static Door brig_doors[] = {{{300, 380, 40, 40}, "Corridor", false, {0}}};
+    rooms[ROOM_BRIG] = (Room){brig_chests, brig_props, brig_doors, brig_npcs,
+                              "Brig", "square", 1, 1, 1, 4};
+
+    static Chest storage_chests[] = {
+        {{320, 240, 32, 24}, false, {0}, "a healing salve",
+         "storage_chest_opened"},
+        {{360, 240, 32, 24}, false, {0}, "leather armor", "storage_armor"}};
+    static Prop storage_props[] = {{{300, 300, 20, 20}, "Crates of supplies"}};
+    static Door storage_doors[] = {{{300, 60, 40, 40}, "Corridor", false, {0}}};
+    rooms[ROOM_STORAGE] = (Room){storage_chests, storage_props, storage_doors,
+                                 NULL, "Storage", "tall", 2, 1, 1, 0};
+
+    static Npc control_npcs[] = {{320, 240, draw_cleric, cleric_dialog,
+                                  "Cleric", &classes[CLASS_HEALER], false,
+                                  false, {0}},
+                                 {380, 200, draw_mage, NULL, "Cultist",
+                                  &classes[CLASS_MAGE], false, true, {0}},
+                                 {260, 200, draw_rogue, NULL, "Acolyte",
+                                  &classes[CLASS_ROGUE], false, true, {0}}};
+    static Chest control_chests[] = {
+        {{320, 300, 32, 24}, false, {0}, "mystic staff", "control_staff"}};
+    static Prop control_props[] = {{{320, 180, 20, 20}, "A glowing altar"}};
+    static Door control_doors[] = {{{40, 220, 40, 40}, "Corridor", false, {0}},
+                                   {{600, 220, 40, 40}, "Escape Pod", false,
+                                    {0}}};
+    rooms[ROOM_CONTROL_ROOM] =
+        (Room){control_chests, control_props, control_doors, control_npcs,
+               "Control Room", "control", 1, 1, 2, 3};
+
+    rooms[ROOM_ESCAPE_POD] = (Room){NULL, NULL, NULL, NULL, "Escape Pod",
+                                    "square", 0, 0, 0, 0};
 }
 
 static void
@@ -724,18 +830,11 @@ int main(int argc, char *argv[]) {
                      .flag_count = 0,
                      ._pad = {0}};
     strncpy(player.name, name, sizeof(player.name) - 1);
-    Chest chest[] = {{{280, 240, 32, 24}, false, {0}}};
-    Door door[]   = {{{500, 220, 40, 40}, false, {0}}};
-    Prop  prop[]  = {{{260, 260, 20, 20}}};
-    Npc npc[] = {{200, 240, draw_familiar, familiar_dialog,
-                  "Familiar", &classes[CLASS_BEAST], false, false, {0}},
-                 {380, 220, draw_imp,      imp_dialog,
-                  "Imp", &classes[CLASS_DEMON], false, true, {0}},
-                 {320, 180, draw_cleric,   cleric_dialog,
-                  "Cleric", &classes[CLASS_HEALER], false, false, {0}}};
-    SDL_Rect familiar_rect = {npc[0].x - 8, npc[0].y - 48, 16, 48};
-    SDL_Rect imp_rect      = {npc[1].x - 8, npc[1].y - 48, 16, 48};
-    SDL_Rect cleric_rect   = {npc[2].x - 8, npc[2].y - 48, 16, 48};
+
+    Room rooms[ROOM_COUNT];
+    create_rooms(rooms);
+    Room *current = &rooms[ROOM_POD_ROOM];
+
     bool running = true;
     SDL_Event e;
     while (running) {
@@ -749,29 +848,44 @@ int main(int argc, char *argv[]) {
                 }
                 if (e.key.keysym.sym == SDLK_e) {
                     SDL_Rect pr = {player.x - 8, player.y - 48, 16, 48};
-                    if (!chest[0].opened &&
-                        SDL_HasIntersection(&pr, &chest[0].rect)) {
-                        chest[0].opened = true;
-                        inventory_add_item(&player, "Rusty Dagger");
-                        char const *msg[] =
-                            {"You find a rusty dagger! (added to inventory)"};
-                        show_message(renderer, font, msg, 1);
-                    } else if (SDL_HasIntersection(&pr, &door[0].rect)) {
-                        char const *msg[] = {"The door is locked."};
-                        show_message(renderer, font, msg, 1);
-                    } else if (SDL_HasIntersection(&pr, &prop[0].rect)) {
-                        char const *msg[] = {"A broken glass pod"};
-                        show_message(renderer, font, msg, 1);
-                    } else if (!npc[0].joined &&
-                               SDL_HasIntersection(&pr, &familiar_rect)) {
-                        familiar_dialog(renderer, font, &npc[0]);
-                        npc_join(&player, &npc[0]);
-                    } else if (SDL_HasIntersection(&pr, &imp_rect)) {
-                        imp_dialog(renderer, font, &npc[1]);
-                    } else if (!npc[2].joined &&
-                               SDL_HasIntersection(&pr, &cleric_rect)) {
-                        cleric_dialog(renderer, font, &npc[2]);
-                        npc_join(&player, &npc[2]);
+                    bool handled = false;
+                    for (int i = 0; i < current->chests && !handled; ++i) {
+                        if (!current->chest[i].opened &&
+                            SDL_HasIntersection(&pr, &current->chest[i].rect)) {
+                            current->chest[i].opened = true;
+                            inventory_add_item(&player, current->chest[i].item);
+                            char        found[64];
+                            snprintf(found, sizeof(found),
+                                     "You find %s!", current->chest[i].item);
+                            char const *msg[] = {found};
+                            show_message(renderer, font, msg, 1);
+                            handled = true;
+                        }
+                    }
+                    for (int i = 0; i < current->doors && !handled; ++i) {
+                        if (SDL_HasIntersection(&pr, &current->door[i].rect)) {
+                            char const *msg[] = {"The door is locked."};
+                            show_message(renderer, font, msg, 1);
+                            handled = true;
+                        }
+                    }
+                    for (int i = 0; i < current->props && !handled; ++i) {
+                        if (SDL_HasIntersection(&pr, &current->prop[i].rect)) {
+                            char const *msg[] = {current->prop[i].desc};
+                            show_message(renderer, font, msg, 1);
+                            handled = true;
+                        }
+                    }
+                    for (int i = 0; i < current->npcs && !handled; ++i) {
+                        SDL_Rect nr = {current->npc[i].x - 8,
+                                       current->npc[i].y - 48, 16, 48};
+                        if (!current->npc[i].joined &&
+                            SDL_HasIntersection(&pr, &nr)) {
+                            current->npc[i].dialog(renderer, font,
+                                                   &current->npc[i]);
+                            npc_join(&player, &current->npc[i]);
+                            handled = true;
+                        }
                     }
                 }
                 if (e.key.keysym.sym == SDLK_i) {
@@ -808,20 +922,22 @@ int main(int argc, char *argv[]) {
             player.y = 460;
         }
         update_companions(&player);
-        familiar_rect.x = npc[0].x - 8;
-        familiar_rect.y = npc[0].y - 48;
-        imp_rect.x      = npc[1].x - 8;
-        imp_rect.y      = npc[1].y - 48;
-        cleric_rect.x   = npc[2].x - 8;
-        cleric_rect.y   = npc[2].y - 48;
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-        draw_prop(renderer, prop[0].rect);
-        draw_door(renderer, door[0].rect);
-        draw_chest(renderer, chest[0].rect, chest[0].opened);
-        draw_familiar(renderer, npc[0].x, npc[0].y);
-        draw_imp(renderer, npc[1].x, npc[1].y);
-        draw_cleric(renderer, npc[2].x, npc[2].y);
+        for (int i = 0; i < current->props; ++i) {
+            draw_prop(renderer, current->prop[i].rect);
+        }
+        for (int i = 0; i < current->doors; ++i) {
+            draw_door(renderer, current->door[i].rect);
+        }
+        for (int i = 0; i < current->chests; ++i) {
+            draw_chest(renderer, current->chest[i].rect,
+                       current->chest[i].opened);
+        }
+        for (int i = 0; i < current->npcs; ++i) {
+            current->npc[i].draw(renderer, current->npc[i].x,
+                                 current->npc[i].y);
+        }
         switch (player.info->id) {
         case CLASS_FIGHTER:
             draw_warrior(renderer, player.x, player.y);
@@ -846,8 +962,7 @@ int main(int argc, char *argv[]) {
             Npc *comp = player.companions[i];
             comp->draw(renderer, comp->x, comp->y);
         }
-        Room room = {chest, prop, door, npc, 1, 1, 1, 3};
-        char const *hint = interaction_hint(&player, &room);
+        char const *hint = interaction_hint(&player, current);
         draw_instructions(renderer, font, hint);
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
