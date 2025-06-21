@@ -1,5 +1,6 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -215,6 +216,61 @@ draw_mage(SDL_Renderer *renderer, int x, int y) {
 }
 
 static void
+draw_cleric(SDL_Renderer *renderer, int x, int y) {
+    draw_humanoid(renderer, x, y, (SDL_Color){255, 255, 0, 255});
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_RenderDrawLine(renderer, x, y - 28, x, y - 44);
+    SDL_RenderDrawLine(renderer, x - 4, y - 36, x + 4, y - 36);
+}
+
+static void
+draw_familiar(SDL_Renderer *renderer, int x, int y) {
+    SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
+    int const r = 8;
+    for (int dy = -r; dy <= r; ++dy) {
+        double width = sqrt((double)(r * r - dy * dy));
+        int    dx    = (int)width;
+        SDL_RenderDrawLine(renderer, x - dx, y - 8 + dy, x + dx, y - 8 + dy);
+    }
+}
+
+static void
+draw_imp(SDL_Renderer *renderer, int x, int y) {
+    SDL_Rect body = {x - 6, y - 16, 12, 16};
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+    SDL_RenderFillRect(renderer, &body);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderDrawLine(renderer, x - 4, y - 16, x - 2, y - 20);
+    SDL_RenderDrawLine(renderer, x + 4, y - 16, x + 2, y - 20);
+}
+
+static void
+draw_chest(SDL_Renderer *renderer, SDL_Rect rect, bool opened) {
+    SDL_SetRenderDrawColor(renderer, 160, 82, 45, 255);
+    SDL_RenderDrawRect(renderer, &rect);
+    if (opened) {
+        SDL_RenderDrawLine(renderer, rect.x, rect.y,
+                           rect.x + rect.w, rect.y + rect.h);
+        SDL_RenderDrawLine(renderer, rect.x + rect.w, rect.y,
+                           rect.x, rect.y + rect.h);
+    }
+}
+
+static void
+draw_door(SDL_Renderer *renderer, SDL_Rect rect) {
+    SDL_SetRenderDrawColor(renderer, 128, 128, 128, 255);
+    SDL_RenderDrawRect(renderer, &rect);
+    SDL_RenderDrawLine(renderer, rect.x + rect.w / 2, rect.y,
+                       rect.x + rect.w / 2, rect.y + rect.h);
+}
+
+static void
+draw_prop(SDL_Renderer *renderer, SDL_Rect rect) {
+    SDL_SetRenderDrawColor(renderer, 128, 128, 0, 255);
+    SDL_RenderDrawRect(renderer, &rect);
+}
+
+static void
 text_input(SDL_Renderer *renderer, TTF_Font *font, char const *prompt,
            char *buffer, int capacity) {
     buffer[0] = '\0';
@@ -301,6 +357,16 @@ int main(int argc, char *argv[]) {
 
     Player player = {320, 240, "", &classes[class_idx]};
     strncpy(player.name, name, sizeof(player.name) - 1);
+    SDL_Rect chest = {280, 240, 32, 24};
+    bool chest_open = false;
+    SDL_Rect door = {500, 220, 40, 40};
+    SDL_Rect prop = {260, 260, 20, 20};
+    int familiar_x = 200;
+    int familiar_y = 240;
+    int imp_x      = 380;
+    int imp_y      = 220;
+    int cleric_x   = 320;
+    int cleric_y   = 180;
     bool running = true;
     SDL_Event e;
     while (running) {
@@ -308,12 +374,59 @@ int main(int argc, char *argv[]) {
             if (e.type == SDL_QUIT) {
                 running = false;
             }
-            if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
-                running = false;
+            if (e.type == SDL_KEYDOWN) {
+                if (e.key.keysym.sym == SDLK_ESCAPE) {
+                    running = false;
+                }
+                if (e.key.keysym.sym == SDLK_e) {
+                    SDL_Rect pr = {player.x - 8, player.y - 48, 16, 48};
+                    if (!chest_open && SDL_HasIntersection(&pr, &chest)) {
+                        chest_open = true;
+                        char const *msg[] = {"You find a rusty dagger!"};
+                        show_message(renderer, font, msg, 1);
+                    } else if (SDL_HasIntersection(&pr, &door)) {
+                        char const *msg[] = {"The door is locked."};
+                        show_message(renderer, font, msg, 1);
+                    } else if (SDL_HasIntersection(&pr, &prop)) {
+                        char const *msg[] = {"A broken glass pod"};
+                        show_message(renderer, font, msg, 1);
+                    }
+                }
             }
+        }
+        const Uint8 *keys = SDL_GetKeyboardState(NULL);
+        if (keys[SDL_SCANCODE_LEFT]) {
+            player.x -= 4;
+        }
+        if (keys[SDL_SCANCODE_RIGHT]) {
+            player.x += 4;
+        }
+        if (keys[SDL_SCANCODE_UP]) {
+            player.y -= 4;
+        }
+        if (keys[SDL_SCANCODE_DOWN]) {
+            player.y += 4;
+        }
+        if (player.x < 20) {
+            player.x = 20;
+        }
+        if (player.x > 620) {
+            player.x = 620;
+        }
+        if (player.y < 20) {
+            player.y = 20;
+        }
+        if (player.y > 460) {
+            player.y = 460;
         }
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
+        draw_prop(renderer, prop);
+        draw_door(renderer, door);
+        draw_chest(renderer, chest, chest_open);
+        draw_familiar(renderer, familiar_x, familiar_y);
+        draw_imp(renderer, imp_x, imp_y);
+        draw_cleric(renderer, cleric_x, cleric_y);
         if (strcmp(player.info->name, "Fighter") == 0) {
             draw_warrior(renderer, player.x, player.y);
         } else if (strcmp(player.info->name, "Rogue") == 0) {
