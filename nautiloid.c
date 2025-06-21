@@ -636,6 +636,15 @@ draw_imp(SDL_Renderer *renderer, int x, int y) {
     SDL_RenderDrawLine(renderer, x + 4, y - 16, x + 2, y - 20);
 }
 
+static NpcDraw const class_draw[] = {
+    [CLASS_FIGHTER] = draw_warrior,
+    [CLASS_ROGUE]   = draw_rogue,
+    [CLASS_MAGE]    = draw_mage,
+    [CLASS_HEALER]  = draw_cleric,
+    [CLASS_BEAST]   = draw_familiar,
+    [CLASS_DEMON]   = draw_imp,
+};
+
 static SDL_Texture *
 make_face(SDL_Renderer *renderer, NpcDraw draw) {
     SDL_Texture *face = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
@@ -1127,26 +1136,7 @@ draw_fight(void *data) {
         int x = ctx->pos[i].x;
         int y = ctx->pos[i].y;
         if (ctx->fighters[i].is_player) {
-            switch (ctx->player->info->id) {
-            case CLASS_FIGHTER:
-                draw_warrior(ctx->renderer, x, y);
-                break;
-            case CLASS_ROGUE:
-                draw_rogue(ctx->renderer, x, y);
-                break;
-            case CLASS_MAGE:
-                draw_mage(ctx->renderer, x, y);
-                break;
-            case CLASS_HEALER:
-                draw_cleric(ctx->renderer, x, y);
-                break;
-            case CLASS_BEAST:
-                draw_familiar(ctx->renderer, x, y);
-                break;
-            case CLASS_DEMON:
-                draw_imp(ctx->renderer, x, y);
-                break;
-            }
+            class_draw[ctx->player->info->id](ctx->renderer, x, y);
         } else {
             ctx->fighters[i].npc->draw(ctx->renderer, x, y);
         }
@@ -1264,27 +1254,7 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
                 }
                 opts[ac] = (engaged[0] == -1) ? "Engage" : "Disengage";
                 int opt_count = ac + 1;
-                NpcDraw face_draw;
-                switch (player->info->id) {
-                case CLASS_FIGHTER:
-                    face_draw = draw_warrior;
-                    break;
-                case CLASS_ROGUE:
-                    face_draw = draw_rogue;
-                    break;
-                case CLASS_MAGE:
-                    face_draw = draw_mage;
-                    break;
-                case CLASS_HEALER:
-                    face_draw = draw_cleric;
-                    break;
-                case CLASS_BEAST:
-                    face_draw = draw_familiar;
-                    break;
-                case CLASS_DEMON:
-                    face_draw = draw_imp;
-                    break;
-                }
+                NpcDraw face_draw = class_draw[player->info->id];
                 SDL_Texture *face = make_face(renderer, face_draw);
                 int abidx = menu_prompt(renderer, font, "Choose action", opts,
                                        opt_count, player->name, face,
@@ -1804,26 +1774,7 @@ int main(int argc, char *argv[]) {
                                      current->npc[i].y);
             }
         }
-        switch (player.info->id) {
-        case CLASS_FIGHTER:
-            draw_warrior(renderer, player.x, player.y);
-            break;
-        case CLASS_ROGUE:
-            draw_rogue(renderer, player.x, player.y);
-            break;
-        case CLASS_MAGE:
-            draw_mage(renderer, player.x, player.y);
-            break;
-        case CLASS_HEALER:
-            draw_cleric(renderer, player.x, player.y);
-            break;
-        case CLASS_BEAST:
-            draw_familiar(renderer, player.x, player.y);
-            break;
-        case CLASS_DEMON:
-            draw_imp(renderer, player.x, player.y);
-            break;
-        }
+        class_draw[player.info->id](renderer, player.x, player.y);
         for (int i = 0; i < player.companion_count; ++i) {
             Npc *comp = player.companions[i];
             comp->draw(renderer, comp->x, comp->y);
