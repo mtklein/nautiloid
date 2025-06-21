@@ -112,6 +112,7 @@ typedef struct {
     char const *dest;
     bool        open;
     char        _pad[7];
+    char const *key;
 } Door;
 
 typedef void (*NpcDraw)(SDL_Renderer *, int, int);
@@ -623,7 +624,7 @@ update_companions(Player *player) {
 
 static void
 npc_join(Player *player, Npc *npc) {
-    if (player->companion_count < 4 && !npc->joined) {
+    if (player->companion_count < 4 && !npc->joined && !npc->enemy) {
         player->companions[player->companion_count] = npc;
         player->companion_count++;
         npc->joined = true;
@@ -657,17 +658,19 @@ create_rooms(Room rooms[ROOM_COUNT]) {
     static Chest pod_chests[] = {
         {{280, 240, 32, 24}, false, {0}, "small key", "pod_key"}};
     static Prop pod_props[] = {{{260, 260, 20, 20}, "A broken glass pod"}};
-    static Door pod_doors[] = {{{600, 220, 40, 40}, "Corridor", false, {0}}};
+    static Door pod_doors[] = {{{600, 220, 40, 40}, "Corridor", false,
+                                {0}, "small key"}};
     rooms[ROOM_POD_ROOM] =
         (Room){pod_chests, pod_props, pod_doors, pod_npcs, "Pod Room",
                "circle", 1, 1, 1, 1};
 
     static Prop cor_props[] = {{{320, 240, 16, 16}, "A flickering wall torch"}};
-    static Door cor_doors[] = {{{40, 220, 40, 40}, "Pod Room", false, {0}},
-                               {{300, 60, 40, 40}, "Brig", false, {0}},
-                               {{300, 380, 40, 40}, "Storage", false, {0}},
+    static Door cor_doors[] = {{{40, 220, 40, 40}, "Pod Room", false,
+                                {0}, "small key"},
+                               {{300, 60, 40, 40}, "Brig", true, {0}, NULL},
+                               {{300, 380, 40, 40}, "Storage", true, {0}, NULL},
                                {{600, 220, 40, 40}, "Control Room", false,
-                                {0}}};
+                                {0}, "control key"}};
     rooms[ROOM_CORRIDOR] =
         (Room){NULL, cor_props, cor_doors, NULL, "Corridor", "wide", 0, 1, 4, 0};
 
@@ -681,18 +684,19 @@ create_rooms(Room rooms[ROOM_COUNT]) {
                               {340, 260, draw_imp, imp_dialog, "Imp",
                                &classes[CLASS_DEMON], false, true, {0}}};
     static Chest brig_chests[] = {
-        {{280, 240, 32, 24}, false, {0}, "an iron sword", "brig_sword"}};
+        {{280, 240, 32, 24}, false, {0}, "an iron sword", "brig_sword"},
+        {{360, 240, 32, 24}, false, {0}, "control key", "brig_key"}};
     static Prop brig_props[] = {{{360, 260, 16, 16}, "Chains hang from the wall"}};
-    static Door brig_doors[] = {{{300, 380, 40, 40}, "Corridor", false, {0}}};
+    static Door brig_doors[] = {{{300, 380, 40, 40}, "Corridor", true, {0}, NULL}};
     rooms[ROOM_BRIG] = (Room){brig_chests, brig_props, brig_doors, brig_npcs,
-                              "Brig", "square", 1, 1, 1, 4};
+                              "Brig", "square", 2, 1, 1, 4};
 
     static Chest storage_chests[] = {
         {{320, 240, 32, 24}, false, {0}, "a healing salve",
          "storage_chest_opened"},
         {{360, 240, 32, 24}, false, {0}, "leather armor", "storage_armor"}};
     static Prop storage_props[] = {{{300, 300, 20, 20}, "Crates of supplies"}};
-    static Door storage_doors[] = {{{300, 60, 40, 40}, "Corridor", false, {0}}};
+    static Door storage_doors[] = {{{300, 60, 40, 40}, "Corridor", true, {0}, NULL}};
     rooms[ROOM_STORAGE] = (Room){storage_chests, storage_props, storage_doors,
                                  NULL, "Storage", "tall", 2, 1, 1, 0};
 
@@ -706,9 +710,10 @@ create_rooms(Room rooms[ROOM_COUNT]) {
     static Chest control_chests[] = {
         {{320, 300, 32, 24}, false, {0}, "mystic staff", "control_staff"}};
     static Prop control_props[] = {{{320, 180, 20, 20}, "A glowing altar"}};
-    static Door control_doors[] = {{{40, 220, 40, 40}, "Corridor", false, {0}},
-                                   {{600, 220, 40, 40}, "Escape Pod", false,
-                                    {0}}};
+    static Door control_doors[] = {{{40, 220, 40, 40}, "Corridor", false,
+                                    {0}, "control key"},
+                                   {{600, 220, 40, 40}, "Escape Pod", true,
+                                    {0}, NULL}};
     rooms[ROOM_CONTROL_ROOM] =
         (Room){control_chests, control_props, control_doors, control_npcs,
                "Control Room", "control", 1, 1, 2, 3};
@@ -889,8 +894,19 @@ int main(int argc, char *argv[]) {
                         if (SDL_HasIntersection(&pr, &current->door[i].rect)) {
                             Door *door = &current->door[i];
                             if (!door->open) {
-                                if (inventory_has_item(&player, "small key")) {
+                                if (!door->key ||
+                                    inventory_has_item(&player, door->key)) {
                                     door->open = true;
+                                    Room *dest = find_room(rooms, door->dest);
+                                    if (dest) {
+                                        for (int j = 0; j < dest->doors; ++j) {
+                                            if (0 == strcmp(dest->door[j].dest,
+                                                            current->name)) {
+                                                dest->door[j].open = true;
+                                                break;
+                                            }
+                                        }
+                                    }
                                     char const *msg[] = {
                                         "You unlock the door with the key."};
                                     show_message(renderer, font, msg, 1);
