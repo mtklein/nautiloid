@@ -9,20 +9,16 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    SDL_Window *win = SDL_CreateWindow("Nautiloid Adventure", 100, 100, 640, 480, SDL_WINDOW_SHOWN);
-    if (!win) {
-        fprintf(stderr, "SDL_CreateWindow Error: %s\n", SDL_GetError());
+    SDL_Window *win = NULL;
+    SDL_Renderer *ren = NULL;
+    if (SDL_CreateWindowAndRenderer(640, 480, SDL_WINDOW_SHOWN,
+                                   &win, &ren) != 0) {
+        fprintf(stderr, "SDL_CreateWindowAndRenderer Error: %s\n",
+                SDL_GetError());
         SDL_Quit();
         return 1;
     }
-
-    SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!ren) {
-        SDL_DestroyWindow(win);
-        fprintf(stderr, "SDL_CreateRenderer Error: %s\n", SDL_GetError());
-        SDL_Quit();
-        return 1;
-    }
+    SDL_SetWindowTitle(win, "Nautiloid Adventure");
 
     bool running = true;
     while (running) {
