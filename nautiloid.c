@@ -619,24 +619,24 @@ interaction_hint(Player const *player, Room const *room) {
     for (int i = 0; i < room->chests; ++i) {
         if (!room->chest[i].opened &&
             SDL_HasIntersection(&pr, &room->chest[i].rect)) {
-            return "op(e)n chest";
+            return "e - open chest";
         }
     }
     for (int i = 0; i < room->doors; ++i) {
         if (SDL_HasIntersection(&pr, &room->door[i].rect)) {
-            return "op(e)n door";
+            return "e - open door";
         }
     }
     for (int i = 0; i < room->props; ++i) {
         if (SDL_HasIntersection(&pr, &room->prop[i].rect)) {
-            return "insp(e)ct";
+            return "e - inspect";
         }
     }
     for (int i = 0; i < room->npcs; ++i) {
         if (!room->npc[i].joined) {
             SDL_Rect nr = {room->npc[i].x - 8, room->npc[i].y - 48, 16, 48};
             if (SDL_HasIntersection(&pr, &nr)) {
-                return "sp(e)ak";
+                return "e - talk";
             }
         }
     }
@@ -649,9 +649,9 @@ draw_instructions(SDL_Renderer *renderer, TTF_Font *font, char const *hint) {
     SDL_GetRendererOutputSize(renderer, &w, &h);
     char       buffer[64];
     if (hint) {
-        snprintf(buffer, sizeof(buffer), "(i)nventory  (p)arty  %s", hint);
+        snprintf(buffer, sizeof(buffer), "i - inventory  p - party  %s", hint);
     } else {
-        snprintf(buffer, sizeof(buffer), "(i)nventory  (p)arty");
+        snprintf(buffer, sizeof(buffer), "i - inventory  p - party");
     }
     SDL_Texture *text =
         render_text(renderer, font, buffer, (SDL_Color){255, 255, 255, 255});
