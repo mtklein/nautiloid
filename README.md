@@ -5,11 +5,9 @@ The scenario resembles an escape from a nautiloid ship with original characters 
 The goal is to demonstrate core gameplay features in a small vertical slice.
 
 See `docs/vertical_slice_design.md` for the design overview.
-The old text-based demo has been removed.
-You can also play a simple graphical port of the text adventure using Pygame:
-`python3 src/pygame_adventure.py`.
-The Pygame version now features attribute-based combat.
-Floating HP numbers show damage and healing.
+The old text-based demo has been removed. A short Pygame version was used
+while porting features but has now been retired after merging its mechanics
+into the SDL2 prototype.
 
 ## SDL2 Prototype
 A minimal C/SDL2 prototype resides in `nautiloid.c`.
