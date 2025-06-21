@@ -1,24 +1,24 @@
 #include <SDL2/SDL.h>
-#include <stdio.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 int main(int argc, char* argv[]) {
-    (void)argc; (void)argv;
+    (void)argc;
+    (void)argv;
+
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
         return 1;
     }
 
-    SDL_Window *win = NULL;
-    SDL_Renderer *ren = NULL;
-    if (SDL_CreateWindowAndRenderer(640, 480, SDL_WINDOW_SHOWN,
-                                   &win, &ren) != 0) {
-        fprintf(stderr, "SDL_CreateWindowAndRenderer Error: %s\n",
-                SDL_GetError());
+    SDL_Window   *window   = NULL;
+    SDL_Renderer *renderer = NULL;
+    if (0 != SDL_CreateWindowAndRenderer(640,480, SDL_WINDOW_SHOWN, &window,&renderer)) {
+        fprintf(stderr, "SDL_CreateWindowAndRenderer() -> %s\n", SDL_GetError());
         SDL_Quit();
         return 1;
     }
-    SDL_SetWindowTitle(win, "Nautiloid Adventure");
+    SDL_SetWindowTitle(window, "Nautiloid Adventure");
 
     bool running = true;
     while (running) {
@@ -29,14 +29,14 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
-        SDL_RenderClear(ren);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
         // TODO: Render game graphics and text here
-        SDL_RenderPresent(ren);
+        SDL_RenderPresent(renderer);
     }
 
-    SDL_DestroyRenderer(ren);
-    SDL_DestroyWindow(win);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow  (window);
     SDL_Quit();
     return 0;
 }
