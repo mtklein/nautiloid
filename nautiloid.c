@@ -351,13 +351,41 @@ show_message(SDL_Renderer *renderer, TTF_Font *font,
     }
 }
 
+typedef enum {
+    FW_ROCKET,
+    FW_SPARK,
+} FireworkKind;
+
 typedef struct {
-    float     x;
-    float     y;
-    float     vy;
-    SDL_Color color;
-    int       life;
+    float         x;
+    float         y;
+    float         vx;
+    float         vy;
+    SDL_Color     color;
+    int           life;
+    FireworkKind  kind;
 } Firework;
+
+static SDL_Color
+rand_fire_color(void) {
+    int style = rand() % 3;
+    if (style == 0) {
+        return (SDL_Color){
+            (Uint8)(192 + rand() % 64),
+            (Uint8)(192 + rand() % 64),
+            (Uint8)(192 + rand() % 64),
+            255};
+    }
+    if (style == 1) {
+        return (SDL_Color){
+            (Uint8)(64 + rand() % 192),
+            (Uint8)(64 + rand() % 192),
+            (Uint8)(64 + rand() % 192),
+            255};
+    }
+    int grey = 96 + rand() % 160;
+    return (SDL_Color){(Uint8)grey, (Uint8)grey, (Uint8)grey, 255};
+}
 
 static void
 star_wars_scroll(SDL_Renderer *renderer, TTF_Font *font,
@@ -376,8 +404,8 @@ star_wars_scroll(SDL_Renderer *renderer, TTF_Font *font,
         rects[i].x = (width - rects[i].w) / 2;
         total += rects[i].h + 8;
     }
-    Firework fireworks[32];
-    int      fw_count = 0;
+    Firework fireworks[128];
+    int      fireworks_count = 0;
     int      offset   = height;
     int      hold     = 0;
     bool     running  = true;
@@ -390,27 +418,59 @@ star_wars_scroll(SDL_Renderer *renderer, TTF_Font *font,
         }
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-        if (fw_count < 32 && (rand() % 100) < 5) {
-            fireworks[fw_count] = (Firework){
+        if (fireworks_count < 120 && (rand() % 100) < 5) {
+            fireworks[fireworks_count] = (Firework){
                 (float)(50 + rand() % (width - 100)),
                 (float)height,
-                2.0f + (float)(rand() % 20) / 5.0f,
-                {(Uint8)(128 + rand() % 128),
-                 (Uint8)(128 + rand() % 128),
-                 (Uint8)(128 + rand() % 128),
-                 255},
-                0};
-            fw_count++;
+                0.0f,
+                7.0f + (float)(rand() % 40) / 10.0f,
+                {255, 255, 255, 255},
+                0,
+                FW_ROCKET};
+            fireworks_count++;
         }
-        for (int i = 0; i < fw_count; ++i) {
+        for (int i = 0; i < fireworks_count; ++i) {
             Firework *fw = &fireworks[i];
+            fw->x += fw->vx;
             fw->y -= fw->vy;
+            if (fw->kind == FW_ROCKET) {
+                fw->vy -= 0.2f;
+                if (fw->life > 5 && fw->vy < -1.0f) {
+                    int sparks = 24;
+                    for (int s = 0; s < sparks &&
+                                    fireworks_count < 128; ++s) {
+                        double angle =
+                            ((double)(rand() % 360)) * (PI / 180.0);
+                        double speed =
+                            1.5 + (double)(rand() % 50) / 10.0;
+                        fireworks[fireworks_count++] = (Firework){
+                            fw->x,
+                            fw->y,
+                            (float)(cos(angle) * speed),
+                            (float)(sin(angle) * speed),
+                            rand_fire_color(),
+                            0,
+                            FW_SPARK};
+                    }
+                    fireworks[i] =
+                        fireworks[--fireworks_count];
+                    i--;
+                    continue;
+                }
+            } else {
+                fw->vy -= 0.05f;
+            }
             fw->life++;
-            SDL_SetRenderDrawColor(renderer, fw->color.r, fw->color.g,
-                                   fw->color.b, 255);
+            float ratio = 1.0f - (float)fw->life / 45.0f;
+            SDL_Color c = {
+                (Uint8)(fw->color.r * ratio),
+                (Uint8)(fw->color.g * ratio),
+                (Uint8)(fw->color.b * ratio),
+                255};
+            SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, 255);
             SDL_RenderDrawPoint(renderer, (int)fw->x, (int)fw->y);
-            if (fw->life > 60) {
-                fireworks[i] = fireworks[--fw_count];
+            if (fw->life > 45 || fw->y > (float)height) {
+                fireworks[i] = fireworks[--fireworks_count];
                 i--;
             }
         }
