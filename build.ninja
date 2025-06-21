@@ -1,0 +1,17 @@
+builddir = out
+cc = gcc
+cflags = `sdl2-config --cflags` -isystem /opt/homebrew/include -Wall -Wextra -g
+ldflags = `sdl2-config --libs` -L /opt/homebrew/lib
+
+rule cc
+  command = $cc $cflags -MMD -MF $out.d -c $in -o $out
+  depfile = $out.d
+  deps = gcc
+
+rule link
+  command = $cc $in -o $out $ldflags
+
+build $builddir/nautiloid.o: cc c/main.c
+build $builddir/nautiloid: link $builddir/nautiloid.o
+
+default $builddir/nautiloid
