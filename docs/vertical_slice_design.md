@@ -4,7 +4,7 @@ This document outlines the scope for the prototype.
 
 ## Features
 
-* **Character Creation:** Choose a name and class (Fighter, Rogue, Mage).
+* **Character Creation:** Choose a name and class (Fighter, Rogue, Mage, Cleric).
 * **Exploration:** Navigate multiple text-based rooms connected by doors.
 * **Interactables:** Open chests and inspect objects to learn about the ship.
 * **Familiar Companion:** Discover a strange creature that can join you after a simple skill check.

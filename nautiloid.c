@@ -7,7 +7,7 @@
 #include <string.h>
 /*
  * TODO: port features from pygame_adventure.py
- * - Define class data for Healer, Beast and Demon
+ * - Define class data for Cleric, Beast and Demon
  * - Map attack and defense attributes per class
  * - Create NPC, Chest, Prop, Door and Room structs
  * - Implement create_rooms() to mirror Python rooms
@@ -102,7 +102,7 @@ static Ability const mage_abilities[] = {
     {.name = "Barrier", .target = "ally", .melee = false, .power = 3},
 };
 
-static Ability const healer_abilities[] = {
+static Ability const cleric_abilities[] = {
     {.name = "Smite", .target = "enemy", .melee = true, .power = 3},
     {.name = "Heal", .target = "ally", .melee = false, .power = 4},
 };
@@ -123,7 +123,7 @@ static ClassInfo const classes[] = {
      .attributes = {5, 8, 3, 10}},
     {.name = "Mage", .abilities = mage_abilities, .ability_count = 2,
      .attributes = {3, 5, 8, 8}},
-    {.name = "Healer", .abilities = healer_abilities, .ability_count = 2,
+    {.name = "Cleric", .abilities = cleric_abilities, .ability_count = 2,
      .attributes = {4, 4, 8, 10}},
     {.name = "Beast", .abilities = beast_abilities, .ability_count = 2,
      .attributes = {6, 6, 2, 8}},
@@ -470,8 +470,7 @@ int main(int argc, char *argv[]) {
 
     char name[64];
     text_input(renderer, font, "Enter your name:", name, (int)sizeof(name));
-    char const *class_names[] = {
-        "Fighter", "Rogue", "Mage", "Healer", "Beast", "Demon"};
+    char const *class_names[] = {"Fighter", "Rogue", "Mage", "Cleric"};
     int class_idx =
         menu_prompt(renderer, font, "Choose a class", class_names,
                     (int)(sizeof(class_names) / sizeof(class_names[0])));

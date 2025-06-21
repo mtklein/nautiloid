@@ -37,7 +37,7 @@ CLASS_ABILITIES: Dict[str, List[Ability]] = {
         Ability("Sneak Attack", "enemy", 4, True),
     ],
     "Mage": [Ability("Firebolt", "enemy", 4), Ability("Barrier", "ally", 3)],
-    "Healer": [Ability("Smite", "enemy", 3, True), Ability("Heal", "ally", 4)],
+    "Cleric": [Ability("Smite", "enemy", 3, True), Ability("Heal", "ally", 4)],
     "Beast": [Ability("Bite", "enemy", 2, True), Ability("Encourage", "ally", 2)],
     "Demon": [Ability("Claw", "enemy", 2, True)],
 }
@@ -46,7 +46,7 @@ CLASS_ATTRIBUTES: Dict[str, Attributes] = {
     "Fighter": Attributes(8, 4, 3, 12),
     "Rogue": Attributes(5, 8, 3, 10),
     "Mage": Attributes(3, 5, 8, 8),
-    "Healer": Attributes(4, 4, 8, 10),
+    "Cleric": Attributes(4, 4, 8, 10),
     "Beast": Attributes(6, 6, 2, 8),
     "Demon": Attributes(5, 5, 5, 10),
 }
@@ -58,7 +58,7 @@ ATTACK_ATTRIBUTE: Dict[str, str] = {
     "Fighter": "strength",
     "Rogue": "agility",
     "Mage": "wisdom",
-    "Healer": "wisdom",
+    "Cleric": "wisdom",
     "Beast": "strength",
     "Demon": "strength",
 }
@@ -67,7 +67,7 @@ DEFENSE_ATTRIBUTE: Dict[str, str] = {
     "Fighter": "strength",
     "Rogue": "agility",
     "Mage": "wisdom",
-    "Healer": "wisdom",
+    "Cleric": "wisdom",
     "Beast": "agility",
     "Demon": "strength",
 }
@@ -181,7 +181,7 @@ def get_face_surface(npc: NPC) -> pygame.Surface:
         draw_imp(surf, 16, 24)
     elif npc.char_class == "Fighter":
         draw_warrior(surf, 16, 48)
-    elif npc.char_class == "Healer":
+    elif npc.char_class == "Cleric":
         draw_cleric(surf, 16, 48)
     elif npc.char_class == "Rogue":
         draw_rogue(surf, 16, 48)
@@ -247,7 +247,7 @@ class NPC:
             draw_imp(screen, x, y)
         elif self.char_class == "Fighter":
             draw_warrior(screen, x, y)
-        elif self.char_class == "Healer":
+        elif self.char_class == "Cleric":
             draw_cleric(screen, x, y)
         elif self.char_class == "Rogue":
             draw_rogue(screen, x, y)
@@ -763,9 +763,9 @@ def create_rooms() -> Dict[str, Room]:
                 cleric_dialog,
                 False,
                 False,
-                "Healer",
-                CLASS_ABILITIES["Healer"].copy(),
-                CLASS_ATTRIBUTES["Healer"],
+                "Cleric",
+                CLASS_ABILITIES["Cleric"].copy(),
+                CLASS_ATTRIBUTES["Cleric"],
             ),
             NPC(
                 "Cultist",
@@ -834,8 +834,13 @@ def main() -> None:
     clock = pygame.time.Clock()
 
     name = text_input(screen, font, "Enter your name:")
-    class_idx = menu_prompt(screen, font, "Choose a class", ["Fighter", "Rogue", "Mage"])
-    char_class = ["Fighter", "Rogue", "Mage"][class_idx]
+    class_idx = menu_prompt(
+        screen,
+        font,
+        "Choose a class",
+        ["Fighter", "Rogue", "Mage", "Cleric"],
+    )
+    char_class = ["Fighter", "Rogue", "Mage", "Cleric"][class_idx]
     player = Player(
         320,
         240,
