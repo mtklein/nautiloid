@@ -65,6 +65,20 @@ static Ability const mage_abilities[] = {
     {.name = "Barrier", .target = "ally", .melee = false, .power = 3},
 };
 
+static Ability const healer_abilities[] = {
+    {.name = "Smite", .target = "enemy", .melee = true, .power = 3},
+    {.name = "Heal", .target = "ally", .melee = false, .power = 4},
+};
+
+static Ability const beast_abilities[] = {
+    {.name = "Bite", .target = "enemy", .melee = true, .power = 2},
+    {.name = "Encourage", .target = "ally", .melee = false, .power = 2},
+};
+
+static Ability const demon_abilities[] = {
+    {.name = "Claw", .target = "enemy", .melee = true, .power = 2},
+};
+
 static ClassInfo const classes[] = {
     {.name = "Fighter", .abilities = fighter_abilities, .ability_count = 2,
      .attributes = {8, 4, 3, 12}},
@@ -72,6 +86,12 @@ static ClassInfo const classes[] = {
      .attributes = {5, 8, 3, 10}},
     {.name = "Mage", .abilities = mage_abilities, .ability_count = 2,
      .attributes = {3, 5, 8, 8}},
+    {.name = "Healer", .abilities = healer_abilities, .ability_count = 2,
+     .attributes = {4, 4, 8, 10}},
+    {.name = "Beast", .abilities = beast_abilities, .ability_count = 2,
+     .attributes = {6, 6, 2, 8}},
+    {.name = "Demon", .abilities = demon_abilities, .ability_count = 1,
+     .attributes = {5, 5, 5, 10}},
 };
 
 static SDL_Texture *
@@ -413,7 +433,8 @@ int main(int argc, char *argv[]) {
 
     char name[64];
     text_input(renderer, font, "Enter your name:", name, (int)sizeof(name));
-    char const *class_names[] = {"Fighter", "Rogue", "Mage"};
+    char const *class_names[] = {
+        "Fighter", "Rogue", "Mage", "Healer", "Beast", "Demon"};
     int class_idx =
         menu_prompt(renderer, font, "Choose a class", class_names,
                     (int)(sizeof(class_names) / sizeof(class_names[0])));
