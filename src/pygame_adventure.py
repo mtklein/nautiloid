@@ -200,6 +200,7 @@ def draw_text_box(
     lines: List[str],
     speaker: Optional[str] = None,
     face: Optional[pygame.Surface] = None,
+    bottom: Optional[str] = None,
 ) -> None:
     width, height = screen.get_size()
     box_height = height // 3
@@ -220,6 +221,11 @@ def draw_text_box(
         face_rect = face.get_rect()
         face_rect.midright = (rect.x - 10, rect.y + 40)
         screen.blit(face, face_rect)
+    if bottom:
+        text = font.render(bottom, True, pygame.Color("white"))
+        text_rect = text.get_rect(centerx=rect.centerx)
+        text_rect.bottom = rect.bottom - 10
+        screen.blit(text, text_rect)
 
 
 @dataclass
@@ -281,7 +287,12 @@ def show_message(
         screen.fill((0, 0, 0))
         if draw_bg:
             draw_bg()
-        draw_text_box(screen, font, lines + ["Press SPACE or E to continue"])
+        draw_text_box(
+            screen,
+            font,
+            lines,
+            bottom="Press SPACE or E to continue",
+        )
         pygame.display.flip()
         clock.tick(30)
 

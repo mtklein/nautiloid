@@ -233,16 +233,17 @@ draw_gradient_rect(SDL_Renderer *renderer, SDL_Rect rect,
 
 static void
 draw_text_box(SDL_Renderer *renderer, TTF_Font *font,
-              char const *lines[], int line_count) {
+              char const *lines[], int line_count,
+              char const *footer) {
     int   width  = 0;
     int   height = 0;
     SDL_GetRendererOutputSize(renderer, &width, &height);
     int        box_height = height / 3;
     SDL_Rect   rect       = {20, height - box_height - 20,
                              width - 40, box_height};
-    SDL_Color const top    = {100, 100, 255, 255},
-                       bottom = {40, 40, 180, 255};
-    draw_gradient_rect(renderer, rect, top, bottom);
+    SDL_Color const top       = {100, 100, 255, 255},
+                       botclr = {40, 40, 180, 255};
+    draw_gradient_rect(renderer, rect, top, botclr);
     SDL_SetRenderDrawColor(renderer, 192, 192, 192, 255);
     SDL_RenderDrawRect(renderer, &rect);
 
@@ -257,6 +258,17 @@ draw_text_box(SDL_Renderer *renderer, TTF_Font *font,
             SDL_DestroyTexture(text);
         }
         y += 26;
+    }
+    if (footer) {
+        SDL_Texture *text =
+            render_text(renderer, font, footer, (SDL_Color){255, 255, 255, 255});
+        if (text) {
+            SDL_Rect dst = {0, rect.y + rect.h - 26, 0, 0};
+            SDL_QueryTexture(text, NULL, NULL, &dst.w, &dst.h);
+            dst.x = rect.x + (rect.w - dst.w) / 2;
+            SDL_RenderCopy(renderer, text, NULL, &dst);
+            SDL_DestroyTexture(text);
+        }
     }
 }
 
@@ -277,13 +289,13 @@ show_message(SDL_Renderer *renderer, TTF_Font *font,
         }
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-        char const *all[10];
+        char const *all[9];
         int         n = 0;
         for (int i = 0; i < line_count && i < 9; ++i) {
             all[n++] = lines[i];
         }
-        all[n++] = "Press SPACE or E to continue";
-        draw_text_box(renderer, font, all, n);
+        draw_text_box(renderer, font, all, n,
+                      "Press SPACE or E to continue");
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
     }
@@ -315,7 +327,7 @@ menu_prompt(SDL_Renderer *renderer, TTF_Font *font, char const *question,
         }
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-        draw_text_box(renderer, font, lines, option_count + 1);
+        draw_text_box(renderer, font, lines, option_count + 1, NULL);
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
     }
@@ -502,7 +514,7 @@ text_input(SDL_Renderer *renderer, TTF_Font *font, char const *prompt,
         char const *lines[2] = {prompt, buffer};
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-        draw_text_box(renderer, font, lines, 2);
+        draw_text_box(renderer, font, lines, 2, NULL);
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
     }
