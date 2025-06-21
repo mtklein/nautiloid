@@ -577,9 +577,6 @@ npc_join(Player *player, Npc *npc) {
 
 static void
 npc_dismiss(Player *player, int index) {
-    if (index < 0 || index >= player->companion_count) {
-        return;
-    }
     player->companions[index]->joined = false;
     for (int i = index; i < player->companion_count - 1; ++i) {
         player->companions[i] = player->companions[i + 1];
@@ -602,9 +599,6 @@ show_party_menu(SDL_Renderer *renderer, TTF_Font *font, Player *player) {
     }
     int idx = menu_prompt(renderer, font, "Choose companion", options,
                           player->companion_count);
-    if (idx < 0 || idx >= player->companion_count) {
-        return;
-    }
     char const *acts[] = {"Talk", "Dismiss", "Back"};
     int action = menu_prompt(renderer, font, "Party action", acts, 3);
     if (action == 0) {

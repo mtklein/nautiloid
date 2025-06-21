@@ -20,3 +20,5 @@
                corridor = {0};
 - Prefer to mark constant stack values `const` so changing values stand
   out, but avoid marking pointers themselves `const` unless necessary.
+
+- Omit defensive bounds or null checks for internal code; sanitizers will catch these bugs.
