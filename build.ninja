@@ -2,7 +2,7 @@ builddir = out
 
 cc   = clang
 cflags = `sdl2-config --cflags` -isystem /opt/homebrew/include
-ldflags = `sdl2-config --libs` -L /opt/homebrew/lib
+ldflags = `sdl2-config --libs` -lSDL2_ttf -L /opt/homebrew/lib
 warn = -Weverything $
     -Wno-declaration-after-statement $
     -Wno-poison-system-directories $

@@ -10,3 +10,13 @@
 - Prefer descriptive variable names like `window` instead of abbreviations.
 - Put one statement on each line rather than chaining them together.
 - Write constants on the left side of comparisons, e.g. `0 != foo()`.
+- Fix warnings rather than disabling them. Cast explicitly to resolve
+  implicit cast warnings and insert padding fields to resolve implicit
+  struct padding warnings.
+- When initializing multiple values of the same type, put the first on
+  the line with the type and align the rest after the `=` sign:
+
+    Room const pod      = {0},
+               corridor = {0};
+- Prefer to mark constant stack values `const` so changing values stand
+  out, but avoid marking pointers themselves `const` unless necessary.
