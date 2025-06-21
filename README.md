@@ -9,5 +9,5 @@ The Pygame version now features attribute-based combat with floating HP numbers 
 
 ## SDL2 Prototype
 
-A minimal C/SDL2 skeleton is provided in the `c` directory. It opens a window and runs a basic event loop. Build with `ninja` (requires SDL2 development libraries). The resulting binary will be `out/nautiloid`.
+A minimal C/SDL2 prototype resides in `nautiloid.c`. Build it with `ninja` to produce `out/nautiloid`.
 
