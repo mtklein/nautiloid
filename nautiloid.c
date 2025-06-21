@@ -712,6 +712,30 @@ float_number(SDL_Renderer *renderer, TTF_Font *font, char const *lines[],
 }
 
 static void
+animate_move(SDL_Renderer *renderer, DrawBg draw_bg, void *ctx,
+             SDL_Point *pos, SDL_Point dest) {
+    SDL_Point start = *pos;
+    for (int i = 0; i <= 15; ++i) {
+        SDL_Event e;
+        while (SDL_PollEvent(&e)) {
+            if (e.type == SDL_QUIT) {
+                exit(0);
+            }
+        }
+        pos->x = start.x + ((dest.x - start.x) * i) / 15;
+        pos->y = start.y + ((dest.y - start.y) * i) / 15;
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        if (draw_bg) {
+            draw_bg(ctx);
+        }
+        SDL_RenderPresent(renderer);
+        SDL_Delay(33);
+    }
+    *pos = dest;
+}
+
+static void
 familiar_dialog(SDL_Renderer *renderer, TTF_Font *font, Npc *npc) {
     SDL_Texture *face = NULL;
     face = npc_face(renderer, npc);
@@ -1097,6 +1121,8 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
     }
 
     FightCtx ctx = {renderer, fighters, hp, max_hp, pos, player, total, {0}};
+    SDL_Point start_pos = pos[0];
+    int       engaged   = -1;
 
     while (hp[0] > 0) {
         bool enemy_alive = false;
@@ -1161,10 +1187,13 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
             SDL_Delay(33);
 
             if (idx == 0) {
-                char const *opts[4];
-                for (int i = 0; i < player->info->ability_count; ++i) {
+                int ac = player->info->ability_count;
+                char const *opts[5];
+                for (int i = 0; i < ac; ++i) {
                     opts[i] = player->info->abilities[i].name;
                 }
+                opts[ac] = (engaged == -1) ? "Engage" : "Disengage";
+                int opt_count = ac + 1;
                 NpcDraw face_draw;
                 switch (player->info->id) {
                 case CLASS_FIGHTER:
@@ -1188,9 +1217,39 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
                 }
                 SDL_Texture *face = make_face(renderer, face_draw);
                 int abidx = menu_prompt(renderer, font, "Choose action", opts,
-                                       player->info->ability_count, player->name,
-                                       face, draw_fight, &ctx);
+                                       opt_count, player->name, face,
+                                       draw_fight, &ctx);
                 SDL_DestroyTexture(face);
+                if (abidx == ac) {
+                    if (engaged == -1) {
+                        int targets[MAX_COMBATANTS];
+                        int tcount = 0;
+                        for (int i = ally_count; i < total; ++i) {
+                            if (hp[i] > 0) {
+                                targets[tcount++] = i;
+                            }
+                        }
+                        int tidx = 0;
+                        if (tcount > 1) {
+                            char const *names[4];
+                            for (int i = 0; i < tcount; ++i) {
+                                names[i] = fighters[targets[i]].npc->name;
+                            }
+                            tidx = menu_prompt(renderer, font, "Choose target",
+                                               names, tcount, NULL, NULL,
+                                               draw_fight, &ctx);
+                        }
+                        int target = targets[tidx];
+                        SDL_Point dest = {pos[target].x - 60, pos[target].y};
+                        animate_move(renderer, draw_fight, &ctx, &pos[0], dest);
+                        engaged = target;
+                    } else {
+                        animate_move(renderer, draw_fight, &ctx, &pos[0],
+                                    start_pos);
+                        engaged = -1;
+                    }
+                    continue;
+                }
                 Ability const *ab = &player->info->abilities[abidx];
                 int targets[MAX_COMBATANTS];
                 int tcount = 0;
@@ -1221,6 +1280,18 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
                                        tcount, NULL, NULL, draw_fight, &ctx);
                 }
                 int target = targets[tidx];
+                if (ab->melee && engaged != target) {
+                    char const *msg[] = {"You need to engage first."};
+                    show_message(renderer, font, msg, 1);
+                    continue;
+                }
+                bool hit = true;
+                if (!ab->melee) {
+                    int chance = (engaged == -1) ? 80 : 50;
+                    if ((rand() % 100) >= chance) {
+                        hit = false;
+                    }
+                }
                 Attributes const *aatr = fighters[idx].is_player
                                               ? &player->info->attributes
                                               : &fighters[idx].npc->info->attributes;
@@ -1241,9 +1312,15 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
                 char        text[64];
                 char const *msg[] = {text};
                 char        num[16];
+                snprintf(text, sizeof(text), "%s uses %s!", player->name,
+                         ab->name);
+                if (!hit) {
+                    float_number(renderer, font, msg, 1, "miss",
+                                 (SDL_Color){255, 255, 255, 255}, pos[target],
+                                 draw_fight, &ctx);
+                    continue;
+                }
                 if (ab->target == TARGET_ENEMY) {
-                    snprintf(text, sizeof(text), "%s uses %s!", player->name,
-                             ab->name);
                     hp[target] -= dmg;
                     snprintf(num, sizeof(num), "-%d", dmg);
                     float_number(renderer, font, msg, 1, num,
@@ -1254,8 +1331,6 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
                         dmg = max_hp[target] - hp[target];
                     }
                     hp[target] += dmg;
-                    snprintf(text, sizeof(text), "%s uses %s!", player->name,
-                             ab->name);
                     snprintf(num, sizeof(num), "+%d", dmg);
                     float_number(renderer, font, msg, 1, num,
                                  (SDL_Color){0, 255, 0, 255}, pos[target],
