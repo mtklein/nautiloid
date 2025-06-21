@@ -1,4 +1,4 @@
 # AGENTS Guidelines
 
-- Every request from the developer should be quoted in the related git commit message using Markdown blockquote style. This ensures each request is easy to track against the changes made.
+- Every request from the developer must be quoted verbatim in the related git commit message using Markdown blockquote style (a leading `>`). This makes it easy to track what was asked versus what was done.
 
