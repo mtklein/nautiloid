@@ -4,9 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wpadded"
-#pragma clang diagnostic ignored "-Wimplicit-int-float-conversion"
 
 typedef struct {
     int x;
@@ -22,6 +19,7 @@ typedef struct {
     SDL_Rect rect;
     const char *item;
     bool opened;
+    char padding[7];
 } Chest;
 
 typedef struct {
@@ -29,16 +27,20 @@ typedef struct {
     SDL_Color color;
     Point pos;
     bool joined;
+    char padding[3];
 } NPC;
 
 typedef struct {
     const char *name;
     Door doors[4];
     int door_count;
+    char padding_a[4];
     Chest chests[2];
     int chest_count;
+    char padding_b[4];
     NPC npcs[4];
     int npc_count;
+    char padding_c[4];
     const char *shape;
 } Room;
 
@@ -93,7 +95,7 @@ static void setup_rooms(Room *pod, Room *corr) {
         .npc_count = 1,
     };
     pod->doors[0] = (Door){{600, 220, 40, 40}, "Corridor"};
-    pod->npcs[0] = (NPC){"Familiar", {0, 255, 255, 255}, {200, 240}, false};
+    pod->npcs[0] = (NPC){"Familiar", {0, 255, 255, 255}, {200, 240}, false, {0}};
 
     *corr = (Room){
         .name = "Corridor",
@@ -124,7 +126,8 @@ int main(int argc, char* argv[]) {
     }
     SDL_SetWindowTitle(win, "Nautiloid Adventure");
 
-    Room pod = {0}, corridor = {0};
+    Room pod      = {0},
+         corridor = {0};
     setup_rooms(&pod, &corridor);
     Room *current = &pod;
     Point player = {320, 240};
@@ -133,7 +136,7 @@ int main(int argc, char* argv[]) {
     bool running = true;
     while (running) {
         Uint32 now = SDL_GetTicks();
-        float dt = (now - last) / 16.0f;
+        float  dt  = (float)(now - last) / 16.0f;
         last = now;
 
         SDL_Event e;
@@ -220,5 +223,4 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-#pragma clang diagnostic pop
 
