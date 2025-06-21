@@ -642,7 +642,6 @@ draw_room_bounds(SDL_Renderer *renderer, char const *shape) {
     }
 }
 
-
 static void
 draw_health_bar(SDL_Renderer *renderer, int x, int y,
                 int hp, int max_hp) {
