@@ -6,3 +6,8 @@ See `docs/vertical_slice_design.md` for the design overview. Run `python3 src/ma
 You can also play a simple graphical port of the text adventure using Pygame:
 `python3 src/pygame_adventure.py`.
 The Pygame version now features attribute-based combat with floating HP numbers for damage and healing.
+
+## SDL2 Prototype
+
+A minimal C/SDL2 skeleton is provided in the `c` directory. It opens a window and runs a basic event loop. Build with `make -C c` (requires SDL2 development libraries).
+
