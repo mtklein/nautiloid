@@ -5,6 +5,42 @@ from typing import List, Dict, Optional
 import pygame
 
 
+@dataclass
+class Ability:
+    """Simple action that can affect a target."""
+
+    name: str
+    target: str  # "enemy" or "ally"
+    power: int
+
+
+@dataclass
+class Attributes:
+    strength: int
+    agility: int
+    wisdom: int
+    hp: int
+
+
+CLASS_ABILITIES: Dict[str, List[Ability]] = {
+    "Fighter": [Ability("Strike", "enemy", 3), Ability("Power Attack", "enemy", 5)],
+    "Rogue": [Ability("Stab", "enemy", 3), Ability("Sneak Attack", "enemy", 4)],
+    "Mage": [Ability("Firebolt", "enemy", 4), Ability("Barrier", "ally", 3)],
+    "Healer": [Ability("Smite", "enemy", 3), Ability("Heal", "ally", 4)],
+    "Beast": [Ability("Bite", "enemy", 2), Ability("Encourage", "ally", 2)],
+    "Demon": [Ability("Claw", "enemy", 2)],
+}
+
+CLASS_ATTRIBUTES: Dict[str, Attributes] = {
+    "Fighter": Attributes(8, 4, 3, 12),
+    "Rogue": Attributes(5, 8, 3, 10),
+    "Mage": Attributes(3, 5, 8, 8),
+    "Healer": Attributes(4, 4, 8, 10),
+    "Beast": Attributes(6, 6, 2, 8),
+    "Demon": Attributes(5, 5, 5, 10),
+}
+
+
 # Stick figure drawing helpers
 
 def draw_stick_figure(screen: pygame.Surface, x: int, y: int, color: pygame.Color) -> None:
@@ -66,6 +102,57 @@ def draw_room_bounds(screen: pygame.Surface, shape: str) -> None:
         pygame.draw.rect(screen, color, pygame.Rect(120, 100, 400, 280), 2)
 
 
+def draw_gradient_rect(surface: pygame.Surface, rect: pygame.Rect, top: pygame.Color, bottom: pygame.Color) -> None:
+    """Fill rect with a vertical gradient."""
+    for y in range(rect.height):
+        ratio = y / rect.height
+        r = int(top.r + (bottom.r - top.r) * ratio)
+        g = int(top.g + (bottom.g - top.g) * ratio)
+        b = int(top.b + (bottom.b - top.b) * ratio)
+        pygame.draw.line(surface, (r, g, b), (rect.x, rect.y + y), (rect.x + rect.width, rect.y + y))
+
+
+def get_face_surface(npc: NPC) -> pygame.Surface:
+    surf = pygame.Surface((32, 32), pygame.SRCALPHA)
+    if npc.name == "Warrior":
+        draw_warrior(surf, 16, 24)
+    elif npc.name == "Cleric":
+        draw_cleric(surf, 16, 24)
+    elif npc.name == "Familiar":
+        draw_familiar(surf, 16, 16)
+    else:
+        draw_stick_figure(surf, 16, 24, npc.color)
+    return surf
+
+
+def draw_text_box(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    lines: List[str],
+    speaker: Optional[str] = None,
+    face: Optional[pygame.Surface] = None,
+) -> None:
+    width, height = screen.get_size()
+    box_height = height // 3
+    rect = pygame.Rect(20, height - box_height - 20, width - 40, box_height)
+    draw_gradient_rect(screen, rect, pygame.Color(100, 100, 255), pygame.Color(40, 40, 180))
+    pygame.draw.rect(screen, pygame.Color("silver"), rect, 4)
+
+    y = rect.y + 10
+    if speaker:
+        name_text = font.render(speaker, True, pygame.Color("white"))
+        screen.blit(name_text, (rect.x + 10, y))
+        y += 30
+    for line in lines:
+        text = font.render(line, True, pygame.Color("white"))
+        screen.blit(text, (rect.x + 10, y))
+        y += 26
+    if face:
+        face_rect = face.get_rect()
+        face_rect.midright = (rect.x - 10, rect.y + 40)
+        screen.blit(face, face_rect)
+
+
 @dataclass
 class NPC:
     name: str
@@ -74,6 +161,10 @@ class NPC:
     y: int
     dialog: Optional[callable] = None
     joined: bool = False
+    enemy: bool = False
+    char_class: str = ""
+    abilities: List[Ability] = field(default_factory=list)
+    attributes: Attributes = field(default_factory=lambda: Attributes(5, 5, 5, 10))
 
     def rect(self) -> pygame.Rect:
         return pygame.Rect(self.x - 16, self.y - 16, 32, 32)
@@ -101,16 +192,19 @@ def show_message(screen: pygame.Surface, font: pygame.font.Font, lines: List[str
             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                 waiting = False
         screen.fill((0, 0, 0))
-        for idx, line in enumerate(lines):
-            text = font.render(line, True, pygame.Color("white"))
-            screen.blit(text, (40, 40 + idx * 30))
-        prompt = font.render("Press SPACE to continue", True, pygame.Color("white"))
-        screen.blit(prompt, (40, screen.get_height() - 40))
+        draw_text_box(screen, font, lines + ["Press SPACE to continue"])
         pygame.display.flip()
         clock.tick(30)
 
 
-def menu_prompt(screen: pygame.Surface, font: pygame.font.Font, question: str, options: List[str]) -> int:
+def menu_prompt(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    question: str,
+    options: List[str],
+    speaker: Optional[str] = None,
+    face: Optional[pygame.Surface] = None,
+) -> int:
     """Display a numbered choice menu and return chosen index."""
     clock = pygame.time.Clock()
     choice = -1
@@ -125,11 +219,8 @@ def menu_prompt(screen: pygame.Surface, font: pygame.font.Font, question: str, o
                     if idx < len(options):
                         choice = idx
         screen.fill((0, 0, 0))
-        q = font.render(question, True, pygame.Color("white"))
-        screen.blit(q, (40, 40))
-        for idx, opt in enumerate(options):
-            opt_text = font.render(f"{idx + 1}. {opt}", True, pygame.Color("white"))
-            screen.blit(opt_text, (60, 80 + idx * 30))
+        lines = [question] + [f"{i + 1}. {opt}" for i, opt in enumerate(options)]
+        draw_text_box(screen, font, lines, speaker, face)
         pygame.display.flip()
         clock.tick(30)
     return choice
@@ -153,10 +244,7 @@ def text_input(screen: pygame.Surface, font: pygame.font.Font, prompt: str) -> s
                 else:
                     text += event.unicode
         screen.fill((0, 0, 0))
-        p = font.render(prompt, True, pygame.Color("white"))
-        screen.blit(p, (40, 40))
-        t = font.render(text, True, pygame.Color("white"))
-        screen.blit(t, (40, 80))
+        draw_text_box(screen, font, [prompt, text])
         pygame.display.flip()
         clock.tick(30)
     return text
@@ -164,7 +252,15 @@ def text_input(screen: pygame.Surface, font: pygame.font.Font, prompt: str) -> s
 
 def familiar_dialog(screen: pygame.Surface, font: pygame.font.Font) -> None:
     while True:
-        idx = menu_prompt(screen, font, "The familiar chirps softly.", ["\"Who are you?\"", "\"Will you help me escape?\"", "\"Let's go.\""])
+        face = get_face_surface(NPC("Familiar", pygame.Color("cyan"), 0, 0))
+        idx = menu_prompt(
+            screen,
+            font,
+            "The familiar chirps softly.",
+            ["\"Who are you?\"", "\"Will you help me escape?\"", "\"Let's go.\""],
+            "Familiar",
+            face,
+        )
         if idx == 0:
             show_message(screen, font, ["It chitters about being bound to the ship by foul magic."])
         elif idx == 1:
@@ -176,7 +272,15 @@ def familiar_dialog(screen: pygame.Surface, font: pygame.font.Font) -> None:
 
 def warrior_dialog(screen: pygame.Surface, font: pygame.font.Font) -> None:
     while True:
-        idx = menu_prompt(screen, font, "The warrior wipes ichor from his blade.", ["\"What's your name?\"", "\"Stick with me, we can escape.\"", "\"Enough talk.\""])
+        face = get_face_surface(NPC("Warrior", pygame.Color("red"), 0, 0))
+        idx = menu_prompt(
+            screen,
+            font,
+            "The warrior wipes ichor from his blade.",
+            ["\"What's your name?\"", "\"Stick with me, we can escape.\"", "\"Enough talk.\""],
+            "Warrior",
+            face,
+        )
         if idx == 0:
             show_message(screen, font, ["\"Call me whatever you like. Let's just survive,\" he grunts."])
         elif idx == 1:
@@ -188,7 +292,15 @@ def warrior_dialog(screen: pygame.Surface, font: pygame.font.Font) -> None:
 
 def cleric_dialog(screen: pygame.Surface, font: pygame.font.Font) -> None:
     while True:
-        idx = menu_prompt(screen, font, "The cleric steadies her breath.", ["\"What happened here?\"", "\"Can you heal us?\"", "\"Let's leave this ship.\""])
+        face = get_face_surface(NPC("Cleric", pygame.Color("yellow"), 0, 0))
+        idx = menu_prompt(
+            screen,
+            font,
+            "The cleric steadies her breath.",
+            ["\"What happened here?\"", "\"Can you heal us?\"", "\"Let's leave this ship.\""],
+            "Cleric",
+            face,
+        )
         if idx == 0:
             show_message(screen, font, ["'A ritual went terribly wrong,' she explains."])
         elif idx == 1:
@@ -227,6 +339,8 @@ class Player:
     companions: List[NPC] = field(default_factory=list)
     inventory: List[str] = field(default_factory=list)
     flags: Dict[str, bool] = field(default_factory=dict)
+    abilities: List[Ability] = field(default_factory=list)
+    attributes: Attributes = field(default_factory=lambda: Attributes(5, 5, 5, 10))
 
     def rect(self) -> pygame.Rect:
         return pygame.Rect(self.x - 16, self.y - 16, 32, 32)
@@ -248,6 +362,54 @@ def update_companions(player: Player) -> None:
         leader_x, leader_y = comp.x, comp.y
 
 
+def combat(screen: pygame.Surface, font: pygame.font.Font, player: Player, enemy: NPC) -> bool:
+    """Simple turn-based combat. Returns True if player wins."""
+    p_hp = player.attributes.hp
+    e_hp = enemy.attributes.hp
+    clock = pygame.time.Clock()
+    turn_player = True
+    while p_hp > 0 and e_hp > 0:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+        screen.fill((0, 0, 0))
+        info = [f"{player.name}: {p_hp} HP", f"{enemy.name}: {e_hp} HP"]
+        draw_text_box(screen, font, info)
+        pygame.display.flip()
+        clock.tick(30)
+
+        if turn_player:
+            idx = menu_prompt(
+                screen,
+                font,
+                "Choose action",
+                [ab.name for ab in player.abilities],
+                player.name,
+                get_face_surface(NPC(player.name, pygame.Color("white"), 0, 0)),
+            )
+            ability = player.abilities[idx]
+            if ability.target == "enemy":
+                e_hp -= ability.power + player.attributes.strength // 2
+                show_message(screen, font, [f"{player.name} uses {ability.name}!"])
+            else:
+                p_hp = min(player.attributes.hp, p_hp + ability.power)
+                show_message(screen, font, [f"{player.name} uses {ability.name}!"])
+        else:
+            ability = enemy.abilities[0] if enemy.abilities else Ability("Attack", "enemy", 2)
+            p_hp -= ability.power
+            show_message(screen, font, [f"{enemy.name} attacks!"])
+        turn_player = not turn_player
+
+    if p_hp > 0:
+        show_message(screen, font, ["You are victorious!"])
+        return True
+    else:
+        show_message(screen, font, ["You were defeated..."])
+        return False
+
+
 @dataclass
 class Room:
     name: str
@@ -262,7 +424,20 @@ def create_rooms() -> Dict[str, Room]:
 
     rooms["Pod Room"] = Room(
         "Pod Room",
-        [NPC("Familiar", pygame.Color("cyan"), 200, 240, familiar_dialog)],
+        [
+            NPC(
+                "Familiar",
+                pygame.Color("cyan"),
+                200,
+                240,
+                familiar_dialog,
+                False,
+                False,
+                "Beast",
+                CLASS_ABILITIES["Beast"].copy(),
+                CLASS_ATTRIBUTES["Beast"],
+            )
+        ],
         [],
         [Door(pygame.Rect(600, 220, 40, 40), "Corridor")],
         "circle",
@@ -283,7 +458,32 @@ def create_rooms() -> Dict[str, Room]:
 
     rooms["Brig"] = Room(
         "Brig",
-        [NPC("Warrior", pygame.Color("red"), 320, 240, warrior_dialog)],
+        [
+            NPC(
+                "Warrior",
+                pygame.Color("red"),
+                320,
+                240,
+                warrior_dialog,
+                False,
+                False,
+                "Fighter",
+                CLASS_ABILITIES["Fighter"].copy(),
+                CLASS_ATTRIBUTES["Fighter"],
+            ),
+            NPC(
+                "Imp",
+                pygame.Color("red"),
+                380,
+                220,
+                None,
+                False,
+                True,
+                "Demon",
+                CLASS_ABILITIES["Demon"].copy(),
+                CLASS_ATTRIBUTES["Demon"],
+            ),
+        ],
         [],
         [Door(pygame.Rect(300, 380, 40, 40), "Corridor")],
         "square",
@@ -299,7 +499,20 @@ def create_rooms() -> Dict[str, Room]:
 
     rooms["Control Room"] = Room(
         "Control Room",
-        [NPC("Cleric", pygame.Color("yellow"), 320, 240, cleric_dialog)],
+        [
+            NPC(
+                "Cleric",
+                pygame.Color("yellow"),
+                320,
+                240,
+                cleric_dialog,
+                False,
+                False,
+                "Healer",
+                CLASS_ABILITIES["Healer"].copy(),
+                CLASS_ATTRIBUTES["Healer"],
+            )
+        ],
         [],
         [
             Door(pygame.Rect(40, 220, 40, 40), "Corridor"),
@@ -342,7 +555,14 @@ def main() -> None:
     name = text_input(screen, font, "Enter your name:")
     class_idx = menu_prompt(screen, font, "Choose a class", ["Fighter", "Rogue", "Mage"])
     char_class = ["Fighter", "Rogue", "Mage"][class_idx]
-    player = Player(320, 240, name=name, char_class=char_class)
+    player = Player(
+        320,
+        240,
+        name=name,
+        char_class=char_class,
+        abilities=CLASS_ABILITIES[char_class].copy(),
+        attributes=CLASS_ATTRIBUTES[char_class],
+    )
 
     rooms = create_rooms()
     current = rooms["Pod Room"]
@@ -379,14 +599,21 @@ def main() -> None:
                         player.flags[chest.flag] = True
                         show_message(screen, font, [f"You find {chest.item}!"])
                         break
-                # npcs
+                # npcs and enemies
                 for npc in current.npcs:
-                    if not npc.joined and pr.colliderect(npc.rect()):
-                        if npc.dialog:
-                            npc.dialog(screen, font)
-                        npc.joined = True
-                        player.companions.append(npc)
-                        break
+                    if pr.colliderect(npc.rect()):
+                        if npc.enemy and not npc.joined:
+                            if combat(screen, font, player, npc):
+                                npc.joined = True  # mark as defeated
+                            else:
+                                running = False
+                            break
+                        elif not npc.joined:
+                            if npc.dialog:
+                                npc.dialog(screen, font)
+                            npc.joined = True
+                            player.companions.append(npc)
+                            break
 
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT]:
