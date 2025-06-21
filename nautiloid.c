@@ -16,11 +16,11 @@
  * - Add pathfinding for NPC movement
  * - Implement save/load functionality
  * - Add sound effects using SDL_mixer
- * - Support gamepad input
  * - Display a mini map of explored rooms
  * - Assign weapons and armor in the party menu
  * - Cache face textures for NPCs to avoid recreating them
- */
+ * - Implement a pause menu
+*/
 
 typedef enum {
     TARGET_ENEMY,
@@ -1535,11 +1535,113 @@ game_end(SDL_Renderer *renderer, TTF_Font *font, Player const *player) {
     star_wars_scroll(renderer, font, msgs, n);
 }
 
+static void
+interact(SDL_Renderer *renderer, TTF_Font *font, Player *player,
+         Room rooms[], Room **current, bool *running) {
+    SDL_Rect pr = {player->x - 8, player->y - 48, 16, 48};
+    bool      handled = false;
+    for (int i = 0; i < (*current)->chests && !handled; ++i) {
+        if (!(*current)->chest[i].opened &&
+            SDL_HasIntersection(&pr, &(*current)->chest[i].rect)) {
+            (*current)->chest[i].opened = true;
+            inventory_add_item(player, (*current)->chest[i].item);
+            char        found[64];
+            snprintf(found, sizeof(found), "You find %s!",
+                     (*current)->chest[i].item);
+            char const *msg[] = {found};
+            show_message(renderer, font, msg, 1);
+            handled = true;
+        }
+    }
+    for (int i = 0; i < (*current)->doors && !handled; ++i) {
+        if (SDL_HasIntersection(&pr, &(*current)->door[i].rect)) {
+            Door *door = &(*current)->door[i];
+            if (!door->open) {
+                if (!door->key || inventory_has_item(player, door->key)) {
+                    door->open = true;
+                    Room *dest = find_room(rooms, door->dest);
+                    if (dest) {
+                        for (int j = 0; j < dest->doors; ++j) {
+                            if (dest->door[j].dest == (*current)->id) {
+                                dest->door[j].open = true;
+                                break;
+                            }
+                        }
+                    }
+                    char const *msg[] = {"You unlock the door with the key."};
+                    show_message(renderer, font, msg, 1);
+                } else {
+                    char const *msg[] = {"The door is locked."};
+                    show_message(renderer, font, msg, 1);
+                }
+                handled = true;
+            } else {
+                Room *dest = find_room(rooms, door->dest);
+                if (dest) {
+                    Door *back = NULL;
+                    for (int j = 0; j < dest->doors; ++j) {
+                        if (dest->door[j].dest == (*current)->id) {
+                            back = &dest->door[j];
+                            break;
+                        }
+                    }
+                    if (back) {
+                        player->x = back->rect.x + back->rect.w / 2;
+                        player->y = back->rect.y + back->rect.h / 2;
+                    } else {
+                        player->x = 320;
+                        player->y = 240;
+                    }
+                    *current = dest;
+                    if (dest == &rooms[ROOM_ESCAPE_POD]) {
+                        game_end(renderer, font, player);
+                        *running = false;
+                    }
+                }
+                handled = true;
+            }
+        }
+    }
+    for (int i = 0; i < (*current)->props && !handled; ++i) {
+        if (SDL_HasIntersection(&pr, &(*current)->prop[i].rect)) {
+            char const *msg[] = {(*current)->prop[i].desc};
+            show_message(renderer, font, msg, 1);
+            handled = true;
+        }
+    }
+    for (int i = 0; i < (*current)->npcs && !handled; ++i) {
+        SDL_Rect nr = {(*current)->npc[i].x - 8, (*current)->npc[i].y - 48,
+                       16, 48};
+        if (!(*current)->npc[i].joined && SDL_HasIntersection(&pr, &nr)) {
+            if ((*current)->npc[i].enemy) {
+                Npc *encounter[4];
+                int  ec = 0;
+                for (int j = 0; j < (*current)->npcs; ++j) {
+                    if ((*current)->npc[j].enemy && !(*current)->npc[j].joined) {
+                        encounter[ec++] = &(*current)->npc[j];
+                    }
+                }
+                if (combat_encounter(renderer, font, player, encounter, ec)) {
+                    for (int j = 0; j < ec; ++j) {
+                        encounter[j]->joined = true;
+                    }
+                } else {
+                    *running = false;
+                }
+            } else {
+                (*current)->npc[i].dialog(renderer, font, &(*current)->npc[i]);
+                npc_join(player, &(*current)->npc[i]);
+            }
+            handled = true;
+        }
+    }
+}
+
 int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
 
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
         fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
         return 1;
     }
@@ -1569,6 +1671,11 @@ int main(int argc, char *argv[]) {
         TTF_Quit();
         SDL_Quit();
         return 1;
+    }
+
+    SDL_GameController *controller = NULL;
+    if (0 < SDL_NumJoysticks() && SDL_IsGameController(0)) {
+        controller = SDL_GameControllerOpen(0);
     }
 
     char name[64];
@@ -1602,8 +1709,11 @@ int main(int argc, char *argv[]) {
     create_rooms(rooms);
     Room *current = &rooms[ROOM_POD_ROOM];
 
-    bool running = true;
-    SDL_Event e;
+    bool       running      = true;
+    SDL_Event  e;
+    bool       gp_interact  = false;
+    bool       gp_inventory = false;
+    bool       gp_party     = false;
     while (running) {
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) {
@@ -1614,109 +1724,7 @@ int main(int argc, char *argv[]) {
                     running = false;
                 }
                 if (e.key.keysym.sym == SDLK_e) {
-                    SDL_Rect pr = {player.x - 8, player.y - 48, 16, 48};
-                    bool handled = false;
-                    for (int i = 0; i < current->chests && !handled; ++i) {
-                        if (!current->chest[i].opened &&
-                            SDL_HasIntersection(&pr, &current->chest[i].rect)) {
-                            current->chest[i].opened = true;
-                            inventory_add_item(&player, current->chest[i].item);
-                            char        found[64];
-                            snprintf(found, sizeof(found),
-                                     "You find %s!", current->chest[i].item);
-                            char const *msg[] = {found};
-                            show_message(renderer, font, msg, 1);
-                            handled = true;
-                        }
-                    }
-                    for (int i = 0; i < current->doors && !handled; ++i) {
-                        if (SDL_HasIntersection(&pr, &current->door[i].rect)) {
-                            Door *door = &current->door[i];
-                            if (!door->open) {
-                                if (!door->key ||
-                                    inventory_has_item(&player, door->key)) {
-                                    door->open = true;
-                                    Room *dest = find_room(rooms, door->dest);
-                                    if (dest) {
-                                        for (int j = 0; j < dest->doors; ++j) {
-                                            if (dest->door[j].dest == current->id) {
-                                                dest->door[j].open = true;
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    char const *msg[] = {
-                                        "You unlock the door with the key."};
-                                    show_message(renderer, font, msg, 1);
-                                } else {
-                                    char const *msg[] = {"The door is locked."};
-                                    show_message(renderer, font, msg, 1);
-                                }
-                                handled = true;
-                            } else {
-                                Room *dest = find_room(rooms, door->dest);
-                                if (dest) {
-                                    Door *back = NULL;
-                                    for (int j = 0; j < dest->doors; ++j) {
-                                        if (dest->door[j].dest == current->id) {
-                                            back = &dest->door[j];
-                                            break;
-                                        }
-                                    }
-                                    if (back) {
-                                        player.x = back->rect.x + back->rect.w / 2;
-                                        player.y = back->rect.y + back->rect.h / 2;
-                                    } else {
-                                        player.x = 320;
-                                        player.y = 240;
-                                    }
-                                    current = dest;
-                                    if (dest == &rooms[ROOM_ESCAPE_POD]) {
-                                        game_end(renderer, font, &player);
-                                        running = false;
-                                    }
-                                }
-                                handled = true;
-                            }
-                        }
-                    }
-                    for (int i = 0; i < current->props && !handled; ++i) {
-                        if (SDL_HasIntersection(&pr, &current->prop[i].rect)) {
-                            char const *msg[] = {current->prop[i].desc};
-                            show_message(renderer, font, msg, 1);
-                            handled = true;
-                        }
-                    }
-                    for (int i = 0; i < current->npcs && !handled; ++i) {
-                        SDL_Rect nr = {current->npc[i].x - 8,
-                                       current->npc[i].y - 48, 16, 48};
-                        if (!current->npc[i].joined &&
-                            SDL_HasIntersection(&pr, &nr)) {
-                            if (current->npc[i].enemy) {
-                                Npc *encounter[4];
-                                int  ec = 0;
-                                for (int j = 0; j < current->npcs; ++j) {
-                                    if (current->npc[j].enemy &&
-                                        !current->npc[j].joined) {
-                                        encounter[ec++] = &current->npc[j];
-                                    }
-                                }
-                                if (combat_encounter(renderer, font, &player,
-                                                    encounter, ec)) {
-                                    for (int j = 0; j < ec; ++j) {
-                                        encounter[j]->joined = true;
-                                    }
-                                } else {
-                                    running = false;
-                                }
-                            } else {
-                                current->npc[i].dialog(renderer, font,
-                                                       &current->npc[i]);
-                                npc_join(&player, &current->npc[i]);
-                            }
-                            handled = true;
-                        }
-                    }
+                    interact(renderer, font, &player, rooms, &current, &running);
                 }
                 if (e.key.keysym.sym == SDLK_i) {
                     show_inventory(renderer, font, &player);
@@ -1725,10 +1733,41 @@ int main(int argc, char *argv[]) {
                     show_party_menu(renderer, font, &player);
                 }
             }
+            if (e.type == SDL_CONTROLLERBUTTONDOWN) {
+                if (e.cbutton.button == SDL_CONTROLLER_BUTTON_B) {
+                    running = false;
+                }
+                if (e.cbutton.button == SDL_CONTROLLER_BUTTON_A) {
+                    gp_interact = true;
+                }
+                if (e.cbutton.button == SDL_CONTROLLER_BUTTON_Y) {
+                    gp_inventory = true;
+                }
+                if (e.cbutton.button == SDL_CONTROLLER_BUTTON_X) {
+                    gp_party = true;
+                }
+            }
+        }
+        if (gp_interact) {
+            interact(renderer, font, &player, rooms, &current, &running);
+            gp_interact = false;
+        }
+        if (gp_inventory) {
+            show_inventory(renderer, font, &player);
+            gp_inventory = false;
+        }
+        if (gp_party) {
+            show_party_menu(renderer, font, &player);
+            gp_party = false;
         }
         const Uint8 *keys  = SDL_GetKeyboardState(NULL);
         int          speed = 4;
-        if (keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT]) {
+        if (keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT] ||
+            (controller &&
+             (SDL_GameControllerGetButton(controller,
+                                          SDL_CONTROLLER_BUTTON_LEFTSHOULDER) ||
+              SDL_GameControllerGetButton(controller,
+                                          SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)))) {
             speed = 8;
         }
         if (keys[SDL_SCANCODE_LEFT]) {
@@ -1742,6 +1781,24 @@ int main(int argc, char *argv[]) {
         }
         if (keys[SDL_SCANCODE_DOWN]) {
             player.y += speed;
+        }
+        if (controller) {
+            int ax = SDL_GameControllerGetAxis(controller,
+                                              SDL_CONTROLLER_AXIS_LEFTX);
+            int ay = SDL_GameControllerGetAxis(controller,
+                                              SDL_CONTROLLER_AXIS_LEFTY);
+            if (ax < -8000) {
+                player.x -= speed;
+            }
+            if (ax > 8000) {
+                player.x += speed;
+            }
+            if (ay < -8000) {
+                player.y -= speed;
+            }
+            if (ay > 8000) {
+                player.y += speed;
+            }
         }
         if (player.x < 20) {
             player.x = 20;
@@ -1786,6 +1843,9 @@ int main(int argc, char *argv[]) {
         SDL_Delay(16);
     }
 
+    if (controller) {
+        SDL_GameControllerClose(controller);
+    }
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow  (window);
     TTF_CloseFont(font);
