@@ -5,6 +5,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+/*
+ * TODO: port features from pygame_adventure.py
+ * - Define class data for Healer, Beast and Demon
+ * - Map attack and defense attributes per class
+ * - Create NPC, Chest, Prop, Door and Room structs
+ * - Implement create_rooms() to mirror Python rooms
+ * - Expand Player with inventory, flags and companions
+ * - Update companions with an update_companions() function
+ * - Add face drawing and speaker options to the UI helpers
+ * - Show floating damage numbers and health bars
+ * - Implement combat_encounter() for turn-based fights
+ * - Support moving between rooms and interacting with objects
+ * - Display a game_end summary after escaping
+ */
 
 typedef struct {
     char const *name;
