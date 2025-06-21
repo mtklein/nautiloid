@@ -233,6 +233,9 @@ class NPC:
     abilities: List[Ability] = field(default_factory=list)
     attributes: Attributes = field(default_factory=lambda: Attributes(5, 5, 5, 10))
 
+    def __hash__(self) -> int:
+        return id(self)
+
     def rect(self) -> pygame.Rect:
         return pygame.Rect(self.x - 8, self.y - 48, 16, 48)
 
@@ -423,6 +426,9 @@ class Player:
     flags: Dict[str, bool] = field(default_factory=dict)
     abilities: List[Ability] = field(default_factory=list)
     attributes: Attributes = field(default_factory=lambda: Attributes(5, 5, 5, 10))
+
+    def __hash__(self) -> int:
+        return id(self)
 
     def rect(self) -> pygame.Rect:
         return pygame.Rect(self.x - 8, self.y - 48, 16, 48)
