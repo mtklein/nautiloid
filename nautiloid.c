@@ -11,12 +11,7 @@
 #define PI 3.14159265358979323846
 #endif
 /*
- * Features ported from pygame_adventure.py
- * - Floating damage numbers and health bars
- * - Turn-based combat via combat_encounter()
- * - Moving between rooms and interacting with objects
- *
- * FUTURE
+ * TODO
  * - Use SDL_image to load textured sprites
  * - Add pathfinding for NPC movement
  * - Implement save/load functionality
