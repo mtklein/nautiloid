@@ -19,6 +19,7 @@
  * - Display a game_end summary after escaping
  * - Use SDL_image to load textured sprites
  * - Add pathfinding for NPC movement
+ * - Expand Npc with name, class info and enemy/joined flags
  */
 
 typedef struct {
@@ -75,13 +76,25 @@ typedef struct {
     ClassId     id;
 } ClassInfo;
 
+typedef struct Npc Npc;
+
+typedef struct {
+    char name[32];
+    bool value;
+    char _pad[3];
+} Flag;
+
 typedef struct {
     int x;
     int y;
     char name[64];
     ClassInfo const *info;
+    Npc *companions[4];
+    int  companion_count;
     char inventory[8][32];
     int  items;
+    Flag flags[16];
+    int  flag_count;
     char _pad[4];
 } Player;
 
@@ -104,7 +117,7 @@ typedef struct {
 typedef void (*NpcDraw)(SDL_Renderer *, int, int);
 typedef void (*NpcDialog)(SDL_Renderer *, TTF_Font *);
 
-typedef struct {
+typedef struct Npc {
     int       x;
     int       y;
     NpcDraw   draw;
@@ -518,6 +531,24 @@ show_inventory(SDL_Renderer *renderer, TTF_Font *font, Player const *player) {
     show_message(renderer, font, lines, player->items);
 }
 
+static void
+update_companions(Player *player) {
+    int lead_x = player->x;
+    int lead_y = player->y;
+    for (int i = 0; i < player->companion_count; ++i) {
+        Npc *comp = player->companions[i];
+        int dx = lead_x - comp->x;
+        int dy = lead_y - comp->y;
+        double dist = hypot((double)dx, (double)dy);
+        if (dist > 1.0) {
+            comp->x += (int)(0.2 * dx);
+            comp->y += (int)(0.2 * dy);
+        }
+        lead_x = comp->x;
+        lead_y = comp->y;
+    }
+}
+
 static char const *
 interaction_hint(Player const *player, Room const *room) {
     SDL_Rect pr = {player->x - 8, player->y - 48, 16, 48};
@@ -615,7 +646,17 @@ int main(int argc, char *argv[]) {
     char const *lines[] = {buffer};
     show_message(renderer, font, lines, 1);
 
-    Player player = {320, 240, "", &classes[class_idx], {{0}}, 0, {0}};
+    Player player = {.x = 320,
+                     .y = 240,
+                     .name = "",
+                     .info = &classes[class_idx],
+                     .companions = {NULL},
+                     .companion_count = 0,
+                     .inventory = {{0}},
+                     .items = 0,
+                     .flags = {{0}},
+                     .flag_count = 0,
+                     ._pad = {0}};
     strncpy(player.name, name, sizeof(player.name) - 1);
     Chest chest[] = {{{280, 240, 32, 24}, false, {0}}};
     Door door[]   = {{{500, 220, 40, 40}, false, {0}}};
@@ -690,6 +731,7 @@ int main(int argc, char *argv[]) {
         if (player.y > 460) {
             player.y = 460;
         }
+        update_companions(&player);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
         draw_prop(renderer, prop[0].rect);
@@ -710,6 +752,10 @@ int main(int argc, char *argv[]) {
             draw_familiar(renderer, player.x, player.y);
         } else if (player.info->id == CLASS_DEMON) {
             draw_imp(renderer, player.x, player.y);
+        }
+        for (int i = 0; i < player.companion_count; ++i) {
+            Npc *comp = player.companions[i];
+            comp->draw(renderer, comp->x, comp->y);
         }
         Room room = {chest, prop, door, npc, 1, 1, 1, 3};
         char const *hint = interaction_hint(&player, &room);
