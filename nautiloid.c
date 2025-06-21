@@ -1492,9 +1492,11 @@ draw_instructions(SDL_Renderer *renderer, TTF_Font *font, char const *hint) {
     SDL_GetRendererOutputSize(renderer, &w, &h);
     char       buffer[64];
     if (hint) {
-        snprintf(buffer, sizeof(buffer), "i - inventory  p - party  %s", hint);
+        snprintf(buffer, sizeof(buffer),
+                 "i - inventory  p - party  shift - sprint  %s", hint);
     } else {
-        snprintf(buffer, sizeof(buffer), "i - inventory  p - party");
+        snprintf(buffer, sizeof(buffer),
+                 "i - inventory  p - party  shift - sprint");
     }
     SDL_Texture *text =
         render_text(renderer, font, buffer, (SDL_Color){255, 255, 255, 255});
@@ -1729,18 +1731,22 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
-        const Uint8 *keys = SDL_GetKeyboardState(NULL);
+        const Uint8 *keys  = SDL_GetKeyboardState(NULL);
+        int          speed = 4;
+        if (keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT]) {
+            speed = 8;
+        }
         if (keys[SDL_SCANCODE_LEFT]) {
-            player.x -= 4;
+            player.x -= speed;
         }
         if (keys[SDL_SCANCODE_RIGHT]) {
-            player.x += 4;
+            player.x += speed;
         }
         if (keys[SDL_SCANCODE_UP]) {
-            player.y -= 4;
+            player.y -= speed;
         }
         if (keys[SDL_SCANCODE_DOWN]) {
-            player.y += 4;
+            player.y += speed;
         }
         if (player.x < 20) {
             player.x = 20;
