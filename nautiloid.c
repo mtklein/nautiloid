@@ -10,7 +10,6 @@
  * - Show floating damage numbers and health bars
  * - Implement combat_encounter() for turn-based fights
  * - Support moving between rooms and interacting with objects
- * - Display a game_end summary after escaping
  *
  * FUTURE
  * - Use SDL_image to load textured sprites
@@ -797,6 +796,38 @@ draw_instructions(SDL_Renderer *renderer, TTF_Font *font, char const *hint) {
     }
 }
 
+static void
+game_end(SDL_Renderer *renderer, TTF_Font *font, Player const *player) {
+    char lines[16][64];
+    char const *msgs[16];
+    int n = 0;
+    snprintf(lines[n], sizeof(lines[n]),
+             "You and your companions have survived!");
+    msgs[n] = lines[n];
+    n++;
+    if (player->companion_count > 0) {
+        msgs[n] = "Companions:";
+        n++;
+        for (int i = 0; i < player->companion_count; ++i) {
+            snprintf(lines[n], sizeof(lines[n]), " - %s",
+                     player->companions[i]->name);
+            msgs[n] = lines[n];
+            n++;
+        }
+    }
+    if (player->items > 0) {
+        msgs[n] = "Inventory:";
+        n++;
+        for (int i = 0; i < player->items; ++i) {
+            snprintf(lines[n], sizeof(lines[n]), " - %s",
+                     player->inventory[i]);
+            msgs[n] = lines[n];
+            n++;
+        }
+    }
+    show_message(renderer, font, msgs, n);
+}
+
 int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
@@ -934,6 +965,10 @@ int main(int argc, char *argv[]) {
                                         player.y = 240;
                                     }
                                     current = dest;
+                                    if (dest == &rooms[ROOM_ESCAPE_POD]) {
+                                        game_end(renderer, font, &player);
+                                        running = false;
+                                    }
                                 }
                                 handled = true;
                             }
