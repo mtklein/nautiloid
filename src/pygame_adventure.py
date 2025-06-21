@@ -263,7 +263,7 @@ def show_message(
     lines: List[str],
     draw_bg: Optional[callable] = None,
 ) -> None:
-    """Display message lines until SPACE pressed."""
+    """Display message lines until SPACE or E pressed."""
     clock = pygame.time.Clock()
     waiting = True
     while waiting:
@@ -271,14 +271,64 @@ def show_message(
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+            if (
+                event.type == pygame.KEYDOWN
+                and event.key in (pygame.K_SPACE, pygame.K_e)
+            ):
                 waiting = False
         screen.fill((0, 0, 0))
         if draw_bg:
             draw_bg()
-        draw_text_box(screen, font, lines + ["Press SPACE to continue"])
+        draw_text_box(screen, font, lines + ["Press SPACE or E to continue"])
         pygame.display.flip()
         clock.tick(30)
+
+
+def show_inventory(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    player: Player,
+) -> None:
+    """Display the player's inventory."""
+    if player.inventory:
+        lines = ["Inventory:"] + [f" - {item}" for item in player.inventory]
+    else:
+        lines = ["Your inventory is empty."]
+    show_message(screen, font, lines)
+
+
+def interaction_hint(player: Player, room: Room) -> Optional[str]:
+    """Return an interaction hint if the player can interact."""
+    pr = player.rect()
+    for chest in room.chests:
+        if not chest.opened and pr.colliderect(chest.rect):
+            return "open chest"
+    for door in room.doors:
+        if pr.colliderect(door.rect):
+            return "open door"
+    for prop in room.props:
+        if pr.colliderect(prop.rect):
+            return "inspect"
+    for npc in room.npcs:
+        if pr.colliderect(npc.rect()):
+            if npc.enemy and not npc.joined:
+                return "fight"
+            if not npc.joined:
+                return "talk"
+    return None
+
+
+def draw_instructions(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    lines: List[str],
+) -> None:
+    """Render instruction lines in the bottom left corner."""
+    height = screen.get_height()
+    base_y = height - 40
+    for idx, text in enumerate(lines):
+        surf = font.render(text, True, pygame.Color("white"))
+        screen.blit(surf, (10, base_y + idx * 20))
 
 
 def menu_prompt(
@@ -908,6 +958,8 @@ def main() -> None:
                             npc.joined = True
                             player.companions.append(npc)
                             break
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_i:
+                show_inventory(screen, font, player)
 
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT]:
@@ -938,8 +990,12 @@ def main() -> None:
             comp.draw(screen)
         room_text = font.render(current.name, True, pygame.Color("white"))
         screen.blit(room_text, (10, 10))
-        instr = font.render("Arrows: move  E: interact", True, pygame.Color("white"))
-        screen.blit(instr, (10, 440))
+
+        hint = interaction_hint(player, current)
+        lines = ["[i] - inventory"]
+        if hint:
+            lines.append(f"[e] - {hint}")
+        draw_instructions(screen, font, lines)
         pygame.display.flip()
         clock.tick(60)
 

@@ -112,12 +112,12 @@ typedef struct {
 
 typedef struct {
     Chest *chest;
-    int    chests;
     Prop  *prop;
-    int    props;
     Door  *door;
-    int    doors;
     Npc   *npc;
+    int    chests;
+    int    props;
+    int    doors;
     int    npcs;
 } Room;
 
@@ -256,13 +256,20 @@ show_message(SDL_Renderer *renderer, TTF_Font *font,
             if (e.type == SDL_QUIT) {
                 exit(0);
             }
-            if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_SPACE) {
+            if (e.type == SDL_KEYDOWN &&
+                (e.key.keysym.sym == SDLK_SPACE || e.key.keysym.sym == SDLK_e)) {
                 waiting = false;
             }
         }
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-        draw_text_box(renderer, font, lines, line_count);
+        char const *all[10];
+        int         n = 0;
+        for (int i = 0; i < line_count && i < 9; ++i) {
+            all[n++] = lines[i];
+        }
+        all[n++] = "Press SPACE or E to continue";
+        draw_text_box(renderer, font, all, n);
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
     }
@@ -510,6 +517,54 @@ show_inventory(SDL_Renderer *renderer, TTF_Font *font, Player const *player) {
     show_message(renderer, font, lines, player->items);
 }
 
+static char const *
+interaction_hint(Player const *player, Room const *room) {
+    SDL_Rect pr = {player->x - 8, player->y - 48, 16, 48};
+    for (int i = 0; i < room->chests; ++i) {
+        if (!room->chest[i].opened &&
+            SDL_HasIntersection(&pr, &room->chest[i].rect)) {
+            return "open chest";
+        }
+    }
+    for (int i = 0; i < room->doors; ++i) {
+        if (SDL_HasIntersection(&pr, &room->door[i].rect)) {
+            return "open door";
+        }
+    }
+    for (int i = 0; i < room->props; ++i) {
+        if (SDL_HasIntersection(&pr, &room->prop[i].rect)) {
+            return "inspect";
+        }
+    }
+    for (int i = 0; i < room->npcs; ++i) {
+        SDL_Rect nr = {room->npc[i].x - 8, room->npc[i].y - 48, 16, 48};
+        if (SDL_HasIntersection(&pr, &nr)) {
+            return "talk";
+        }
+    }
+    return NULL;
+}
+
+static void
+draw_instructions(SDL_Renderer *renderer, TTF_Font *font, char const *hint) {
+    int        w = 0, h = 0;
+    SDL_GetRendererOutputSize(renderer, &w, &h);
+    char       buffer[64];
+    if (hint) {
+        snprintf(buffer, sizeof(buffer), "[i] - inventory  [e] - %s", hint);
+    } else {
+        snprintf(buffer, sizeof(buffer), "[i] - inventory");
+    }
+    SDL_Texture *text =
+        render_text(renderer, font, buffer, (SDL_Color){255, 255, 255, 255});
+    if (text) {
+        SDL_Rect dst = {10, h - 40, 0, 0};
+        SDL_QueryTexture(text, NULL, NULL, &dst.w, &dst.h);
+        SDL_RenderCopy(renderer, text, NULL, &dst);
+        SDL_DestroyTexture(text);
+    }
+}
+
 int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
@@ -556,8 +611,8 @@ int main(int argc, char *argv[]) {
     static char buffer[128];
     snprintf(buffer, sizeof(buffer), "Welcome %s the %s!", name,
              class_names[class_idx]);
-    char const *lines[] = {buffer, "Press SPACE to continue"};
-    show_message(renderer, font, lines, 2);
+    char const *lines[] = {buffer};
+    show_message(renderer, font, lines, 1);
 
     Player player = {320, 240, "", &classes[class_idx], {{0}}, 0, {0}};
     strncpy(player.name, name, sizeof(player.name) - 1);
@@ -655,6 +710,9 @@ int main(int argc, char *argv[]) {
         } else if (player.info->id == CLASS_DEMON) {
             draw_imp(renderer, player.x, player.y);
         }
+        Room room = {chest, prop, door, npc, 1, 1, 1, 3};
+        char const *hint = interaction_hint(&player, &room);
+        draw_instructions(renderer, font, hint);
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
     }
