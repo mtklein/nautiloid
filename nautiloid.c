@@ -8,7 +8,6 @@
 /*
  * TODO: port features from pygame_adventure.py
  * - Define class data for Healer, Beast and Demon
- * - Map attack and defense attributes per class
  * - Create NPC, Chest, Prop, Door and Room structs
  * - Implement create_rooms() to mirror Python rooms
  * - Expand Player with inventory, flags and companions
@@ -18,6 +17,7 @@
  * - Implement combat_encounter() for turn-based fights
  * - Support moving between rooms and interacting with objects
  * - Display a game_end summary after escaping
+ * - Add enumerated class IDs instead of relying on array order
  */
 
 typedef struct {
@@ -34,6 +34,26 @@ typedef struct {
     int wisdom;
     int hp;
 } Attributes;
+
+typedef enum {
+    ATTR_STRENGTH,
+    ATTR_AGILITY,
+    ATTR_WISDOM
+} AttrKind;
+
+static inline int __attribute__((unused))
+attribute_value(Attributes const *attributes, AttrKind kind) {
+    if (kind == ATTR_STRENGTH) {
+        return attributes->strength;
+    }
+    if (kind == ATTR_AGILITY) {
+        return attributes->agility;
+    }
+    if (kind == ATTR_WISDOM) {
+        return attributes->wisdom;
+    }
+    return 0;
+}
 
 typedef struct {
     char const *name;
@@ -130,6 +150,48 @@ static ClassInfo const classes[] = {
     {.name = "Demon", .abilities = demon_abilities, .ability_count = 1,
      .attributes = {5, 5, 5, 10}},
 };
+
+static AttrKind const attack_attr[] = {
+    ATTR_STRENGTH, /* Fighter */
+    ATTR_AGILITY,  /* Rogue   */
+    ATTR_WISDOM,   /* Mage    */
+    ATTR_WISDOM,   /* Healer  */
+    ATTR_STRENGTH, /* Beast   */
+    ATTR_STRENGTH  /* Demon   */
+};
+
+static AttrKind const defense_attr[] = {
+    ATTR_STRENGTH, /* Fighter */
+    ATTR_AGILITY,  /* Rogue   */
+    ATTR_WISDOM,   /* Mage    */
+    ATTR_WISDOM,   /* Healer  */
+    ATTR_AGILITY,  /* Beast   */
+    ATTR_STRENGTH  /* Demon   */
+};
+
+static int
+class_index(ClassInfo const *cls) {
+    for (size_t i = 0; i < sizeof(classes) / sizeof(classes[0]); ++i) {
+        if (cls == &classes[i]) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+static inline AttrKind __attribute__((unused))
+attack_attribute(ClassInfo const *cls) {
+    int idx = class_index(cls);
+    int count = (int)(sizeof(attack_attr) / sizeof(attack_attr[0]));
+    return (idx >= 0 && idx < count) ? attack_attr[idx] : ATTR_STRENGTH;
+}
+
+static inline AttrKind __attribute__((unused))
+defense_attribute(ClassInfo const *cls) {
+    int idx = class_index(cls);
+    int count = (int)(sizeof(defense_attr) / sizeof(defense_attr[0]));
+    return (idx >= 0 && idx < count) ? defense_attr[idx] : ATTR_STRENGTH;
+}
 
 static SDL_Texture *
 render_text(SDL_Renderer *renderer, TTF_Font *font, char const *text,
