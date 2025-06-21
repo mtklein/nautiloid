@@ -1,7 +1,7 @@
 """Text-based demo for Nautiloid Adventure."""
 
 from dataclasses import dataclass, field
-from typing import List, Callable
+from typing import List, Callable, Dict, Optional
 
 
 @dataclass
@@ -22,18 +22,20 @@ class Companion(Character):
 @dataclass
 class Player(Character):
     companions: List[Companion] = field(default_factory=list)
+    inventory: List[str] = field(default_factory=list)
+    flags: Dict[str, bool] = field(default_factory=dict)
 
 
 @dataclass
 class Room:
     name: str
     description: str
-    action: Callable[[Player], None]
+    action: Callable[[Player], Optional[str]]
 
-    def enter(self, player: Player) -> None:
+    def enter(self, player: Player) -> Optional[str]:
         print(f"\n== {self.name} ==")
         print(self.description)
-        self.action(player)
+        return self.action(player)
 
 
 def choose_class() -> str:
@@ -48,37 +50,210 @@ def choose_class() -> str:
         print("Invalid choice.")
 
 
-def pod_room(player: Player) -> None:
-    print("You awaken in a slimy pod on a strange ship.")
-    print("A wriggling creature looks at you expectantly. Attempt to calm it? (y/n)")
-    if input("> ").lower().startswith("y"):
-        player.companions.append(Companion(name="Familiar", char_class="Beast"))
-        print("The creature chirps happily and follows you.")
+def open_chest(player: Player, flag: str, item: str) -> None:
+    if player.flags.get(flag):
+        print("The chest is empty.")
     else:
-        print("It scurries away into the shadows.")
+        print(f"You open the chest and find {item}!")
+        player.inventory.append(item)
+        player.flags[flag] = True
 
 
-def hallway(player: Player) -> None:
-    print("An armored warrior is fending off small imps.")
-    print("Help the warrior? (y/n)")
-    if input("> ").lower().startswith("y"):
-        ally = Companion(name="Warrior", char_class="Fighter")
-        player.companions.append(ally)
-        print("Together you defeat the imps!")
+def familiar_dialog() -> None:
+    while True:
+        print("The familiar chirps softly, awaiting your words.")
+        print("1. \"Who are you?\"")
+        print("2. \"Will you help me escape?\"")
+        print("3. \"Let's go.\"")
+        choice = input("> ")
+        if choice == "1":
+            print("It chitters about being bound to the ship by foul magic.")
+        elif choice == "2":
+            print("The creature nods enthusiastically.")
+        elif choice == "3":
+            print("It hops onto your shoulder.")
+            return
+        else:
+            print("It stares in confusion.")
+
+
+def warrior_dialog() -> None:
+    while True:
+        print("The warrior wipes ichor from his blade.")
+        print("1. \"What's your name?\"")
+        print("2. \"Stick with me, we can escape.\"")
+        print("3. \"Enough talk.\"")
+        choice = input("> ")
+        if choice == "1":
+            print("\"Call me whatever you like. Let's just survive,\" he grunts.")
+        elif choice == "2":
+            print("He nods. 'Lead the way.'")
+        elif choice == "3":
+            print("He falls in behind you, ready for battle.")
+            return
+        else:
+            print("He raises an eyebrow, not understanding.")
+
+
+def cleric_dialog() -> None:
+    while True:
+        print("The cleric steadies her breath, relieved.")
+        print("1. \"What happened here?\"")
+        print("2. \"Can you heal us?\"")
+        print("3. \"Let's leave this ship.\"")
+        choice = input("> ")
+        if choice == "1":
+            print("'A ritual went terribly wrong,' she explains.")
+        elif choice == "2":
+            print("She murmurs a prayer and a warm light surrounds you.")
+        elif choice == "3":
+            print("She grabs a nearby pack and prepares to follow.")
+            return
+        else:
+            print("She looks puzzled by your response.")
+
+
+def pod_room(player: Player) -> str:
+    if not player.flags.get("intro_shown"):
+        print("You awaken in a slimy pod on a strange ship.")
+        player.flags["intro_shown"] = True
+
+    if not player.flags.get("familiar_met"):
+        print("A wriggling creature eyes you curiously.")
+        print("1. Calm the creature")
+        print("2. Ignore it")
+        choice = input("> ")
+        if choice == "1":
+            player.companions.append(Companion(name="Familiar", char_class="Beast"))
+            print("The creature chirps happily and follows you.")
+            familiar_dialog()
+        else:
+            print("It scurries away into the shadows.")
+        player.flags["familiar_met"] = True
+
+    while True:
+        print("\nActions:")
+        opts = []
+        if not player.flags.get("pod_chest_opened"):
+            print("1. Open the chest")
+            opts.append("1")
+        print("2. Inspect the pods")
+        print("3. Go east to the Corridor")
+        choice = input("> ")
+        if choice == "1" and "1" in opts:
+            open_chest(player, "pod_chest_opened", "a strange dagger")
+        elif choice == "2":
+            print("The pods pulse with eerie light.")
+        elif choice == "3":
+            return "Corridor"
+        else:
+            print("Invalid choice.")
+
+
+def corridor(player: Player) -> str:
+    print("You stand in a dim corridor, the ship creaking around you.")
+    while True:
+        print("\nDoors lead to:")
+        print("1. Pod Room (west)")
+        print("2. Brig (north)")
+        print("3. Storage (south)")
+        print("4. Control Room (east)")
+        choice = input("> ")
+        if choice == "1":
+            return "Pod Room"
+        if choice == "2":
+            return "Brig"
+        if choice == "3":
+            return "Storage"
+        if choice == "4":
+            return "Control Room"
+        print("Invalid choice.")
+
+
+def brig(player: Player) -> str:
+    if not player.flags.get("warrior_met"):
+        print("A warrior is trapped behind a sparking force field, battling imps.")
+        print("1. Disable the field and help")
+        print("2. Leave him")
+        choice = input("> ")
+        if choice == "1":
+            warrior = Companion(name="Warrior", char_class="Fighter")
+            player.companions.append(warrior)
+            print("Together you defeat the imps and free him!")
+            warrior_dialog()
+            player.flags["warrior_rescued"] = True
+        else:
+            print("You leave him struggling as you back away.")
+        player.flags["warrior_met"] = True
     else:
-        print("You slip past, leaving the warrior to fight alone.")
+        if player.flags.get("warrior_rescued"):
+            print("The empty cell reminds you of the warrior's gratitude.")
+        else:
+            print("The warrior still battles on without your help.")
+    input("Press Enter to return to the corridor.")
+    return "Corridor"
 
 
-def control_room(player: Player) -> None:
-    print("A cleric struggles with the controls as the ship shudders.")
-    print("Assist in stabilizing the craft? (y/n)")
-    if input("> ").lower().startswith("y"):
-        cleric = Companion(name="Cleric", char_class="Healer")
-        player.companions.append(cleric)
-        print("The ship rights itself just long enough for an escape pod to open.")
-    else:
-        print("Alarms blare as the vessel loses altitude rapidly!")
-    print("You leap into the escape pod and launch away just in time.")
+def storage(player: Player) -> str:
+    print("Crates spill their contents across the floor.")
+    while True:
+        print("\nActions:")
+        opts = []
+        if not player.flags.get("storage_chest_opened"):
+            print("1. Open the supply chest")
+            opts.append("1")
+        print("2. Read the scribbled note")
+        print("3. Return to the Corridor")
+        choice = input("> ")
+        if choice == "1" and "1" in opts:
+            open_chest(player, "storage_chest_opened", "a healing salve")
+        elif choice == "2":
+            print("The note mentions experiments on unwilling subjects.")
+        elif choice == "3":
+            return "Corridor"
+        else:
+            print("Invalid choice.")
+
+
+def control_room(player: Player) -> str:
+    if not player.flags.get("cleric_met"):
+        print("A cleric struggles with the controls as the ship shudders violently.")
+        print("1. Help stabilise the craft")
+        print("2. Ignore the cleric")
+        choice = input("> ")
+        if choice == "1":
+            cleric = Companion(name="Cleric", char_class="Healer")
+            player.companions.append(cleric)
+            print("You manage to steady the vessel for a moment.")
+            cleric_dialog()
+            player.flags["cleric_rescued"] = True
+        else:
+            print("The alarms grow louder as you hesitate.")
+        player.flags["cleric_met"] = True
+    while True:
+        print("\nActions:")
+        print("1. Enter the Escape Pod")
+        print("2. Return to the Corridor")
+        choice = input("> ")
+        if choice == "1":
+            return "Escape Pod"
+        if choice == "2":
+            return "Corridor"
+        print("Invalid choice.")
+
+
+def escape_pod(player: Player) -> Optional[str]:
+    print("You strap into the escape pod and launch away from the nautiloid.")
+    print("\nYou and your companions have survived the ordeal!")
+    if player.companions:
+        print("Companions:")
+        for comp in player.companions:
+            print(f" - {comp.name} the {comp.char_class}")
+    if player.inventory:
+        print("Inventory:")
+        for item in player.inventory:
+            print(f" - {item}")
+    return None
 
 
 def main() -> None:
@@ -87,23 +262,21 @@ def main() -> None:
     char_class = choose_class()
     player = Player(name=name, char_class=char_class)
 
-    rooms = [
-        Room("Pod Room", "Gooey pods line the walls.", pod_room),
-        Room("Hallway", "The corridor shakes with turbulence.", hallway),
-        Room("Control Room", "Sparks fly from strange machinery.", control_room),
-    ]
+    rooms = {
+        "Pod Room": Room("Pod Room", "Gooey pods line the walls.", pod_room),
+        "Corridor": Room("Corridor", "Connecting passages of the ship.", corridor),
+        "Brig": Room("Brig", "Cells hold unfortunate prisoners.", brig),
+        "Storage": Room("Storage", "Stacks of supplies and tools.", storage),
+        "Control Room": Room("Control Room", "Sparks fly from strange machinery.", control_room),
+        "Escape Pod": Room("Escape Pod", "A small pod ready for launch.", escape_pod),
+    }
 
-    for room in rooms:
-        room.enter(player)
+    current = "Pod Room"
+    while current:
+        current = rooms[current].enter(player)
         if not player.is_alive():
             print("You have perished.")
             return
-
-    print("\nYou and your companions have survived the ordeal!")
-    if player.companions:
-        print("Companions:")
-        for comp in player.companions:
-            print(f" - {comp.name} the {comp.char_class}")
 
 
 if __name__ == "__main__":
