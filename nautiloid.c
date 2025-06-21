@@ -557,9 +557,9 @@ update_companions(Player *player) {
         int dx = lead_x - comp->x;
         int dy = lead_y - comp->y;
         double dist = hypot((double)dx, (double)dy);
-        if (dist > 1.0) {
-            comp->x += (int)(0.2 * dx);
-            comp->y += (int)(0.2 * dy);
+        if (dist > 64.0) {
+            comp->x += (int)(0.1 * dx);
+            comp->y += (int)(0.1 * dy);
         }
         lead_x = comp->x;
         lead_y = comp->y;
@@ -572,6 +572,45 @@ npc_join(Player *player, Npc *npc) {
         player->companions[player->companion_count] = npc;
         player->companion_count++;
         npc->joined = true;
+    }
+}
+
+static void
+npc_dismiss(Player *player, int index) {
+    if (index < 0 || index >= player->companion_count) {
+        return;
+    }
+    player->companions[index]->joined = false;
+    for (int i = index; i < player->companion_count - 1; ++i) {
+        player->companions[i] = player->companions[i + 1];
+    }
+    player->companion_count--;
+}
+
+static void
+show_party_menu(SDL_Renderer *renderer, TTF_Font *font, Player *player) {
+    if (player->companion_count == 0) {
+        char const *lines[] = {"You have no companions."};
+        show_message(renderer, font, lines, 1);
+        return;
+    }
+    char const *options[4];
+    char        name_bufs[4][32];
+    for (int i = 0; i < player->companion_count; ++i) {
+        snprintf(name_bufs[i], sizeof(name_bufs[i]), "%s", player->companions[i]->name);
+        options[i] = name_bufs[i];
+    }
+    int idx = menu_prompt(renderer, font, "Choose companion", options,
+                          player->companion_count);
+    if (idx < 0 || idx >= player->companion_count) {
+        return;
+    }
+    char const *acts[] = {"Talk", "Dismiss", "Back"};
+    int action = menu_prompt(renderer, font, "Party action", acts, 3);
+    if (action == 0) {
+        player->companions[idx]->dialog(renderer, font);
+    } else if (action == 1) {
+        npc_dismiss(player, idx);
     }
 }
 
@@ -595,9 +634,11 @@ interaction_hint(Player const *player, Room const *room) {
         }
     }
     for (int i = 0; i < room->npcs; ++i) {
-        SDL_Rect nr = {room->npc[i].x - 8, room->npc[i].y - 48, 16, 48};
-        if (SDL_HasIntersection(&pr, &nr)) {
-            return "talk";
+        if (!room->npc[i].joined) {
+            SDL_Rect nr = {room->npc[i].x - 8, room->npc[i].y - 48, 16, 48};
+            if (SDL_HasIntersection(&pr, &nr)) {
+                return "talk";
+            }
         }
     }
     return NULL;
@@ -609,9 +650,9 @@ draw_instructions(SDL_Renderer *renderer, TTF_Font *font, char const *hint) {
     SDL_GetRendererOutputSize(renderer, &w, &h);
     char       buffer[64];
     if (hint) {
-        snprintf(buffer, sizeof(buffer), "[i] - inventory  [e] - %s", hint);
+        snprintf(buffer, sizeof(buffer), "[i] - inventory  [p] - party  [e] - %s", hint);
     } else {
-        snprintf(buffer, sizeof(buffer), "[i] - inventory");
+        snprintf(buffer, sizeof(buffer), "[i] - inventory  [p] - party");
     }
     SDL_Texture *text =
         render_text(renderer, font, buffer, (SDL_Color){255, 255, 255, 255});
@@ -722,18 +763,23 @@ int main(int argc, char *argv[]) {
                     } else if (SDL_HasIntersection(&pr, &prop[0].rect)) {
                         char const *msg[] = {"A broken glass pod"};
                         show_message(renderer, font, msg, 1);
-                    } else if (SDL_HasIntersection(&pr, &familiar_rect)) {
+                    } else if (!npc[0].joined &&
+                               SDL_HasIntersection(&pr, &familiar_rect)) {
                         familiar_dialog(renderer, font);
                         npc_join(&player, &npc[0]);
                     } else if (SDL_HasIntersection(&pr, &imp_rect)) {
                         imp_dialog(renderer, font);
-                    } else if (SDL_HasIntersection(&pr, &cleric_rect)) {
+                    } else if (!npc[2].joined &&
+                               SDL_HasIntersection(&pr, &cleric_rect)) {
                         cleric_dialog(renderer, font);
                         npc_join(&player, &npc[2]);
                     }
                 }
                 if (e.key.keysym.sym == SDLK_i) {
                     show_inventory(renderer, font, &player);
+                }
+                if (e.key.keysym.sym == SDLK_p) {
+                    show_party_menu(renderer, font, &player);
                 }
             }
         }
