@@ -1,3 +1,6 @@
+from __future__ import annotations
+# Postpone evaluation of type hints so forward references like `NPC` work
+
 import sys
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
