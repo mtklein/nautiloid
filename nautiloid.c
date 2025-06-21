@@ -122,6 +122,7 @@ typedef struct {
 
 typedef void (*NpcDraw)(SDL_Renderer *, int, int);
 typedef void (*NpcDialog)(SDL_Renderer *, TTF_Font *, struct Npc *);
+typedef void (*DrawBg)(void *);
 
 typedef struct Npc {
     int               x;
@@ -330,7 +331,7 @@ show_message(SDL_Renderer *renderer, TTF_Font *font,
                       NULL, NULL,
                       "Press SPACE or E to continue");
         SDL_RenderPresent(renderer);
-        SDL_Delay(16);
+        SDL_Delay(33);
     }
 }
 
@@ -404,7 +405,7 @@ star_wars_scroll(SDL_Renderer *renderer, TTF_Font *font,
             y += rects[i].h + 8;
         }
         SDL_RenderPresent(renderer);
-        SDL_Delay(16);
+        SDL_Delay(33);
         if (offset + total > 0) {
             offset--;
         } else if (++hold > 60) {
@@ -419,7 +420,8 @@ star_wars_scroll(SDL_Renderer *renderer, TTF_Font *font,
 static int
 menu_prompt(SDL_Renderer *renderer, TTF_Font *font, char const *question,
             char const *options[], int option_count,
-            char const *speaker, SDL_Texture *face) {
+            char const *speaker, SDL_Texture *face,
+            DrawBg draw_bg, void *ctx) {
     int choice = -1;
     char const *lines[10];
     SDL_Event    e;
@@ -443,10 +445,13 @@ menu_prompt(SDL_Renderer *renderer, TTF_Font *font, char const *question,
         }
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
+        if (draw_bg) {
+            draw_bg(ctx);
+        }
         draw_text_box(renderer, font, lines, option_count + 1,
                       speaker, face, NULL);
         SDL_RenderPresent(renderer);
-        SDL_Delay(16);
+        SDL_Delay(33);
     }
     return choice;
 }
@@ -491,6 +496,14 @@ draw_rogue(SDL_Renderer *renderer, int x, int y) {
     SDL_Rect hood = {x - 6, y - 48, 12, 8};
     SDL_SetRenderDrawColor(renderer, 85, 107, 47, 255);
     SDL_RenderFillRect(renderer, &hood);
+    SDL_Rect mask = {x - 5, y - 46, 10, 3};
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderFillRect(renderer, &mask);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_Rect eye1 = {x - 3, y - 46, 2, 2};
+    SDL_Rect eye2 = {x + 1, y - 46, 2, 2};
+    SDL_RenderFillRect(renderer, &eye1);
+    SDL_RenderFillRect(renderer, &eye2);
     SDL_SetRenderDrawColor(renderer, 192, 192, 192, 255);
     SDL_RenderDrawLine(renderer, x + 6, y - 20, x + 10, y - 30);
 }
@@ -499,15 +512,16 @@ static void
 draw_mage(SDL_Renderer *renderer, int x, int y) {
     draw_humanoid(renderer, x, y, (SDL_Color){106, 90, 205, 255});
     SDL_SetRenderDrawColor(renderer, 128, 0, 128, 255);
-    for (int i = 0; i < 12; ++i) {
-        int dx = i / 2;
+    int const hat_lines = 12;
+    for (int i = 0; i < hat_lines; ++i) {
+        int dx = (hat_lines - 1 - i) / 2;
         SDL_RenderDrawLine(renderer, x - dx, y - 48 - i,
                            x + dx, y - 48 - i);
     }
     SDL_SetRenderDrawColor(renderer, 160, 82, 45, 255);
-    SDL_RenderDrawLine(renderer, x + 6, y - 20, x + 6, y - 40);
-    SDL_RenderDrawLine(renderer, x + 6, y - 40, x + 6, y - 42);
-    SDL_RenderDrawPoint(renderer, x + 6, y - 42);
+    SDL_RenderDrawLine(renderer, x + 6, y - 20, x + 6, y - 42);
+    SDL_Rect knob = {x + 4, y - 46, 4, 4};
+    SDL_RenderFillRect(renderer, &knob);
 }
 
 static void
@@ -628,7 +642,6 @@ draw_room_bounds(SDL_Renderer *renderer, char const *shape) {
     }
 }
 
-typedef void (*DrawBg)(void *);
 
 static void
 draw_health_bar(SDL_Renderer *renderer, int x, int y,
@@ -675,7 +688,7 @@ float_number(SDL_Renderer *renderer, TTF_Font *font, char const *lines[],
             SDL_DestroyTexture(num);
         }
         SDL_RenderPresent(renderer);
-        SDL_Delay(16);
+        SDL_Delay(33);
     }
 }
 
@@ -688,7 +701,7 @@ familiar_dialog(SDL_Renderer *renderer, TTF_Font *font, Npc *npc) {
                            "\"Let's go.\""};
     while (1) {
         int idx = menu_prompt(renderer, font, "The familiar chirps softly.",
-                              opts, 3, npc->name, face);
+                              opts, 3, npc->name, face, NULL, NULL);
         if (idx == 0) {
             char const *msg[] =
                 {"It chitters about being bound to the ship by foul magic."};
@@ -713,7 +726,7 @@ cleric_dialog(SDL_Renderer *renderer, TTF_Font *font, Npc *npc) {
                            "\"Let's leave this ship.\""};
     while (1) {
         int idx = menu_prompt(renderer, font, "The cleric steadies her breath.",
-                              opts, 3, npc->name, face);
+                              opts, 3, npc->name, face, NULL, NULL);
         if (idx == 0) {
             char const *msg[] =
                 {"'A ritual went terribly wrong,' she explains."};
@@ -748,7 +761,7 @@ warrior_dialog(SDL_Renderer *renderer, TTF_Font *font, Npc *npc) {
     while (1) {
         int idx = menu_prompt(renderer, font,
                               "The warrior wipes ichor from his blade.", opts,
-                              3, npc->name, face);
+                              3, npc->name, face, NULL, NULL);
         if (idx == 0) {
             char const *msg[] =
                 {"\"Call me whatever you like. Let's just survive,\" he grunts."};
@@ -795,7 +808,7 @@ text_input(SDL_Renderer *renderer, TTF_Font *font, char const *prompt,
         SDL_RenderClear(renderer);
         draw_text_box(renderer, font, lines, 2, NULL, NULL, NULL);
         SDL_RenderPresent(renderer);
-        SDL_Delay(16);
+        SDL_Delay(33);
     }
     SDL_StopTextInput();
 }
@@ -964,9 +977,10 @@ show_party_menu(SDL_Renderer *renderer, TTF_Font *font, Player *player) {
         options[i] = name_bufs[i];
     }
     int idx = menu_prompt(renderer, font, "Choose companion", options,
-                          player->companion_count, NULL, NULL);
+                          player->companion_count, NULL, NULL, NULL, NULL);
     char const *acts[] = {"Talk", "Dismiss", "Back"};
-    int action = menu_prompt(renderer, font, "Party action", acts, 3, NULL, NULL);
+    int action = menu_prompt(renderer, font, "Party action", acts, 3, NULL,
+                             NULL, NULL, NULL);
     if (action == 0) {
         player->companions[idx]->dialog(renderer, font,
                                         player->companions[idx]);
@@ -1072,6 +1086,8 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
         if (!enemy_alive) {
             char const *msg[] = {"You are victorious!"};
             show_message(renderer, font, msg, 1);
+            char const *loot[] = {"You search the bodies and find some coins."};
+            show_message(renderer, font, loot, 1);
             return true;
         }
 
@@ -1119,7 +1135,7 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
             SDL_RenderClear(renderer);
             draw_fight(&ctx);
             SDL_RenderPresent(renderer);
-            SDL_Delay(16);
+            SDL_Delay(33);
 
             if (idx == 0) {
                 char const *opts[4];
@@ -1150,7 +1166,7 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
                 SDL_Texture *face = make_face(renderer, face_draw);
                 int abidx = menu_prompt(renderer, font, "Choose action", opts,
                                        player->info->ability_count, player->name,
-                                       face);
+                                       face, draw_fight, &ctx);
                 SDL_DestroyTexture(face);
                 Ability const *ab = &player->info->abilities[abidx];
                 int targets[MAX_COMBATANTS];
@@ -1179,7 +1195,7 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
                         }
                     }
                     tidx = menu_prompt(renderer, font, "Choose target", names,
-                                       tcount, NULL, NULL);
+                                       tcount, NULL, NULL, draw_fight, &ctx);
                 }
                 int target = targets[tidx];
                 Attributes const *aatr = fighters[idx].is_player
@@ -1199,12 +1215,15 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
                 if (dmg < 1) {
                     dmg = 1;
                 }
-                char const *msg[] = {""};
+                char        text[64];
+                char const *msg[] = {text};
                 char        num[16];
                 if (strcmp(ab->target, "enemy") == 0) {
+                    snprintf(text, sizeof(text), "%s uses %s!", player->name,
+                             ab->name);
                     hp[target] -= dmg;
                     snprintf(num, sizeof(num), "-%d", dmg);
-                    float_number(renderer, font, msg, 0, num,
+                    float_number(renderer, font, msg, 1, num,
                                  (SDL_Color){255, 255, 255, 255}, pos[target],
                                  draw_fight, &ctx);
                 } else {
@@ -1212,8 +1231,10 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
                         dmg = max_hp[target] - hp[target];
                     }
                     hp[target] += dmg;
+                    snprintf(text, sizeof(text), "%s uses %s!", player->name,
+                             ab->name);
                     snprintf(num, sizeof(num), "+%d", dmg);
-                    float_number(renderer, font, msg, 0, num,
+                    float_number(renderer, font, msg, 1, num,
                                  (SDL_Color){0, 255, 0, 255}, pos[target],
                                  draw_fight, &ctx);
                 }
@@ -1243,14 +1264,17 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
                 if (dmg < 1) {
                     dmg = 1;
                 }
-                char const *msg[] = {""};
+                char        text[64];
+                char const *msg[] = {text};
                 char        num[16];
                 hp[target] -= dmg;
                 SDL_Color col = (idx >= ally_count)
                                     ? (SDL_Color){255, 0, 0, 255}
                                     : (SDL_Color){255, 255, 255, 255};
+                snprintf(text, sizeof(text), "%s attacks!",
+                         actor->npc->name);
                 snprintf(num, sizeof(num), "-%d", dmg);
-                float_number(renderer, font, msg, 0, num, col, pos[target],
+                float_number(renderer, font, msg, 1, num, col, pos[target],
                              draw_fight, &ctx);
             }
         }
@@ -1388,7 +1412,7 @@ int main(int argc, char *argv[]) {
         class_names[i] = classes[i].name;
     }
     int class_idx = menu_prompt(renderer, font, "Choose a class", class_names,
-                                PLAYABLE_CLASS_COUNT, NULL, NULL);
+                                PLAYABLE_CLASS_COUNT, NULL, NULL, NULL, NULL);
     static char buffer[128];
     snprintf(buffer, sizeof(buffer), "Welcome %s the %s!", name,
              class_names[class_idx]);
@@ -1578,8 +1602,10 @@ int main(int argc, char *argv[]) {
                        current->chest[i].opened);
         }
         for (int i = 0; i < current->npcs; ++i) {
-            current->npc[i].draw(renderer, current->npc[i].x,
-                                 current->npc[i].y);
+            if (!current->npc[i].joined) {
+                current->npc[i].draw(renderer, current->npc[i].x,
+                                     current->npc[i].y);
+            }
         }
         switch (player.info->id) {
         case CLASS_FIGHTER:
