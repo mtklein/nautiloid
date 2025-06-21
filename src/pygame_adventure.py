@@ -315,19 +315,19 @@ def interaction_hint(player: Player, room: Room) -> Optional[str]:
     pr = player.rect()
     for chest in room.chests:
         if not chest.opened and pr.colliderect(chest.rect):
-            return "op[e]n chest"
+            return "op(e)n chest"
     for door in room.doors:
         if pr.colliderect(door.rect):
-            return "op[e]n door"
+            return "op(e)n door"
     for prop in room.props:
         if pr.colliderect(prop.rect):
-            return "insp[e]ct"
+            return "insp(e)ct"
     for npc in room.npcs:
         if pr.colliderect(npc.rect()):
             if npc.enemy and not npc.joined:
-                return "engag[e]"
+                return "engag(e)"
             if not npc.joined:
-                return "sp[e]ak"
+                return "sp(e)ak"
     return None
 
 
@@ -1005,7 +1005,7 @@ def main() -> None:
         screen.blit(room_text, (10, 10))
 
         hint = interaction_hint(player, current)
-        lines = ["[i]nventory", "[p]arty"]
+        lines = ["(i)nventory", "(p)arty"]
         if hint:
             lines.append(hint)
         draw_instructions(screen, font, lines)
