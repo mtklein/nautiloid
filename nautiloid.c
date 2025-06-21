@@ -27,12 +27,18 @@
  * - Cache face textures for NPCs to avoid recreating them
  */
 
+typedef enum {
+    TARGET_ENEMY,
+    TARGET_ALLY,
+} TargetType;
+
 typedef struct {
     char const *name;
-    char const *target;
+    TargetType  target;
     bool        melee;
     char        _pad[3];
     int         power;
+    char        _pad2[4];
 } Ability;
 
 typedef struct {
@@ -114,10 +120,11 @@ typedef struct {
 
 typedef struct {
     SDL_Rect    rect;
-    char const *dest;
+    RoomId      dest;
     bool        open;
-    char        _pad[7];
+    char        _pad[3];
     char const *key;
+    char        _pad2[8];
 } Door;
 
 typedef void (*NpcDraw)(SDL_Renderer *, int, int);
@@ -136,46 +143,55 @@ typedef struct Npc {
     char              _pad[6];
 } Npc;
 
+typedef enum {
+    SHAPE_SQUARE,
+    SHAPE_CIRCLE,
+    SHAPE_WIDE,
+    SHAPE_TALL,
+    SHAPE_CONTROL,
+} RoomShape;
+
 typedef struct {
-    Chest      *chest;
-    Prop       *prop;
-    Door       *door;
-    Npc        *npc;
+    Chest     *chest;
+    Prop      *prop;
+    Door      *door;
+    Npc       *npc;
     char const *name;
-    char const *shape;
-    int         chests;
-    int         props;
-    int         doors;
-    int         npcs;
+    RoomShape  shape;
+    RoomId     id;
+    int        chests;
+    int        props;
+    int        doors;
+    int        npcs;
 } Room;
 
 static Ability const fighter_abilities[] = {
-    {.name = "Strike", .target = "enemy", .melee = true, .power = 3},
-    {.name = "Power Attack", .target = "enemy", .melee = true, .power = 5},
+    {.name = "Strike", .target = TARGET_ENEMY, .melee = true, .power = 3},
+    {.name = "Power Attack", .target = TARGET_ENEMY, .melee = true, .power = 5},
 };
 
 static Ability const rogue_abilities[] = {
-    {.name = "Stab", .target = "enemy", .melee = true, .power = 3},
-    {.name = "Sneak Attack", .target = "enemy", .melee = true, .power = 4},
+    {.name = "Stab", .target = TARGET_ENEMY, .melee = true, .power = 3},
+    {.name = "Sneak Attack", .target = TARGET_ENEMY, .melee = true, .power = 4},
 };
 
 static Ability const mage_abilities[] = {
-    {.name = "Firebolt", .target = "enemy", .melee = false, .power = 4},
-    {.name = "Barrier", .target = "ally", .melee = false, .power = 3},
+    {.name = "Firebolt", .target = TARGET_ENEMY, .melee = false, .power = 4},
+    {.name = "Barrier", .target = TARGET_ALLY, .melee = false, .power = 3},
 };
 
 static Ability const healer_abilities[] = {
-    {.name = "Smite", .target = "enemy", .melee = true, .power = 3},
-    {.name = "Heal", .target = "ally", .melee = false, .power = 4},
+    {.name = "Smite", .target = TARGET_ENEMY, .melee = true, .power = 3},
+    {.name = "Heal", .target = TARGET_ALLY, .melee = false, .power = 4},
 };
 
 static Ability const beast_abilities[] = {
-    {.name = "Bite", .target = "enemy", .melee = true, .power = 2},
-    {.name = "Encourage", .target = "ally", .melee = false, .power = 2},
+    {.name = "Bite", .target = TARGET_ENEMY, .melee = true, .power = 2},
+    {.name = "Encourage", .target = TARGET_ALLY, .melee = false, .power = 2},
 };
 
 static Ability const demon_abilities[] = {
-    {.name = "Claw", .target = "enemy", .melee = true, .power = 2},
+    {.name = "Claw", .target = TARGET_ENEMY, .melee = true, .power = 2},
 };
 
 static ClassInfo const classes[] = {
@@ -621,24 +637,28 @@ draw_ellipse(SDL_Renderer *renderer, SDL_Rect rect) {
 }
 
 static void
-draw_room_bounds(SDL_Renderer *renderer, char const *shape) {
+draw_room_bounds(SDL_Renderer *renderer, RoomShape shape) {
     SDL_SetRenderDrawColor(renderer, 0, 0, 139, 255);
-    if (0 == strcmp(shape, "circle")) {
+    switch (shape) {
+    case SHAPE_CIRCLE:
         draw_ellipse(renderer, (SDL_Rect){100, 80, 440, 320});
-    } else if (0 == strcmp(shape, "wide")) {
-        SDL_Rect r = {40, 200, 560, 80};
-        SDL_RenderDrawRect(renderer, &r);
-    } else if (0 == strcmp(shape, "tall")) {
-        SDL_Rect r = {260, 40, 120, 400};
-        SDL_RenderDrawRect(renderer, &r);
-    } else if (0 == strcmp(shape, "control")) {
+        break;
+    case SHAPE_WIDE:
+        SDL_RenderDrawRect(renderer, &(SDL_Rect){40, 200, 560, 80});
+        break;
+    case SHAPE_TALL:
+        SDL_RenderDrawRect(renderer, &(SDL_Rect){260, 40, 120, 400});
+        break;
+    case SHAPE_CONTROL: {
         SDL_Point p[] = {{320, 60},  {380, 120}, {380, 360},
                          {320, 420}, {260, 360}, {260, 120},
                          {320, 60}};
         SDL_RenderDrawLines(renderer, p, 7);
-    } else {
-        SDL_Rect r = {120, 100, 400, 280};
-        SDL_RenderDrawRect(renderer, &r);
+        break;
+    }
+    case SHAPE_SQUARE:
+        SDL_RenderDrawRect(renderer, &(SDL_Rect){120, 100, 400, 280});
+        break;
     }
 }
 
@@ -881,11 +901,9 @@ npc_dismiss(Player *player, int index) {
 }
 
 static Room *
-find_room(Room rooms[ROOM_COUNT], char const *name) {
-    for (int i = 0; i < ROOM_COUNT; ++i) {
-        if (0 == strcmp(rooms[i].name, name)) {
-            return &rooms[i];
-        }
+find_room(Room rooms[ROOM_COUNT], RoomId id) {
+    if (id < ROOM_COUNT) {
+        return &rooms[id];
     }
     return NULL;
 }
@@ -898,21 +916,24 @@ create_rooms(Room rooms[ROOM_COUNT]) {
     static Chest pod_chests[] = {
         {{280, 240, 32, 24}, false, {0}, "small key", "pod_key"}};
     static Prop pod_props[] = {{{260, 260, 20, 20}, "A broken glass pod"}};
-    static Door pod_doors[] = {{{600, 220, 40, 40}, "Corridor", false,
-                                {0}, "small key"}};
+static Door pod_doors[] = {{{600, 220, 40, 40}, ROOM_CORRIDOR, false,
+                                {0}, "small key", {0}}};
     rooms[ROOM_POD_ROOM] =
         (Room){pod_chests, pod_props, pod_doors, pod_npcs, "Pod Room",
-               "circle", 1, 1, 1, 1};
+               SHAPE_CIRCLE, ROOM_POD_ROOM, 1, 1, 1, 1};
 
     static Prop cor_props[] = {{{320, 240, 16, 16}, "A flickering wall torch"}};
-    static Door cor_doors[] = {{{40, 220, 40, 40}, "Pod Room", false,
-                                {0}, "small key"},
-                               {{300, 60, 40, 40}, "Brig", true, {0}, NULL},
-                               {{300, 380, 40, 40}, "Storage", true, {0}, NULL},
-                               {{600, 220, 40, 40}, "Control Room", false,
-                                {0}, "control key"}};
+static Door cor_doors[] = {{{40, 220, 40, 40}, ROOM_POD_ROOM, false,
+                                {0}, "small key", {0}},
+                               {{300, 60, 40, 40}, ROOM_BRIG, true, {0}, NULL,
+                                {0}},
+                               {{300, 380, 40, 40}, ROOM_STORAGE, true, {0}, NULL,
+                                {0}},
+                               {{600, 220, 40, 40}, ROOM_CONTROL_ROOM, false,
+                                {0}, "control key", {0}}};
     rooms[ROOM_CORRIDOR] =
-        (Room){NULL, cor_props, cor_doors, NULL, "Corridor", "wide", 0, 1, 4, 0};
+        (Room){NULL, cor_props, cor_doors, NULL, "Corridor", SHAPE_WIDE,
+               ROOM_CORRIDOR, 0, 1, 4, 0};
 
     static Npc brig_npcs[] = {{320, 240, draw_warrior, warrior_dialog,
                                "Warrior", &classes[CLASS_FIGHTER], false,
@@ -927,18 +948,21 @@ create_rooms(Room rooms[ROOM_COUNT]) {
         {{280, 240, 32, 24}, false, {0}, "an iron sword", "brig_sword"},
         {{360, 240, 32, 24}, false, {0}, "control key", "brig_key"}};
     static Prop brig_props[] = {{{360, 260, 16, 16}, "Chains hang from the wall"}};
-    static Door brig_doors[] = {{{300, 380, 40, 40}, "Corridor", true, {0}, NULL}};
+static Door brig_doors[] = {{{300, 380, 40, 40}, ROOM_CORRIDOR, true, {0}, NULL,
+                              {0}}};
     rooms[ROOM_BRIG] = (Room){brig_chests, brig_props, brig_doors, brig_npcs,
-                              "Brig", "square", 2, 1, 1, 4};
+                              "Brig", SHAPE_SQUARE, ROOM_BRIG, 2, 1, 1, 4};
 
     static Chest storage_chests[] = {
         {{320, 240, 32, 24}, false, {0}, "a healing salve",
          "storage_chest_opened"},
         {{360, 240, 32, 24}, false, {0}, "leather armor", "storage_armor"}};
     static Prop storage_props[] = {{{300, 300, 20, 20}, "Crates of supplies"}};
-    static Door storage_doors[] = {{{300, 60, 40, 40}, "Corridor", true, {0}, NULL}};
+static Door storage_doors[] = {{{300, 60, 40, 40}, ROOM_CORRIDOR, true, {0}, NULL,
+                                {0}}};
     rooms[ROOM_STORAGE] = (Room){storage_chests, storage_props, storage_doors,
-                                 NULL, "Storage", "tall", 2, 1, 1, 0};
+                                 NULL, "Storage", SHAPE_TALL, ROOM_STORAGE,
+                                 2, 1, 1, 0};
 
     static Npc control_npcs[] = {{320, 240, draw_cleric, cleric_dialog,
                                   "Cleric", &classes[CLASS_HEALER], false,
@@ -950,16 +974,16 @@ create_rooms(Room rooms[ROOM_COUNT]) {
     static Chest control_chests[] = {
         {{320, 300, 32, 24}, false, {0}, "mystic staff", "control_staff"}};
     static Prop control_props[] = {{{320, 180, 20, 20}, "A glowing altar"}};
-    static Door control_doors[] = {{{40, 220, 40, 40}, "Corridor", false,
-                                    {0}, "control key"},
-                                   {{600, 220, 40, 40}, "Escape Pod", true,
-                                    {0}, NULL}};
+static Door control_doors[] = {{{40, 220, 40, 40}, ROOM_CORRIDOR, false,
+                                    {0}, "control key", {0}},
+                                   {{600, 220, 40, 40}, ROOM_ESCAPE_POD, true,
+                                    {0}, NULL, {0}}};
     rooms[ROOM_CONTROL_ROOM] =
         (Room){control_chests, control_props, control_doors, control_npcs,
-               "Control Room", "control", 1, 1, 2, 3};
+               "Control Room", SHAPE_CONTROL, ROOM_CONTROL_ROOM, 1, 1, 2, 3};
 
     rooms[ROOM_ESCAPE_POD] = (Room){NULL, NULL, NULL, NULL, "Escape Pod",
-                                    "square", 0, 0, 0, 0};
+                                    SHAPE_SQUARE, ROOM_ESCAPE_POD, 0, 0, 0, 0};
 }
 
 static void
@@ -1170,7 +1194,7 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
                 Ability const *ab = &player->info->abilities[abidx];
                 int targets[MAX_COMBATANTS];
                 int tcount = 0;
-                if (strcmp(ab->target, "enemy") == 0) {
+                if (ab->target == TARGET_ENEMY) {
                     for (int i = ally_count; i < total; ++i) {
                         if (hp[i] > 0) {
                             targets[tcount++] = i;
@@ -1217,7 +1241,7 @@ combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
                 char        text[64];
                 char const *msg[] = {text};
                 char        num[16];
-                if (strcmp(ab->target, "enemy") == 0) {
+                if (ab->target == TARGET_ENEMY) {
                     snprintf(text, sizeof(text), "%s uses %s!", player->name,
                              ab->name);
                     hp[target] -= dmg;
@@ -1472,8 +1496,7 @@ int main(int argc, char *argv[]) {
                                     Room *dest = find_room(rooms, door->dest);
                                     if (dest) {
                                         for (int j = 0; j < dest->doors; ++j) {
-                                            if (0 == strcmp(dest->door[j].dest,
-                                                            current->name)) {
+                                            if (dest->door[j].dest == current->id) {
                                                 dest->door[j].open = true;
                                                 break;
                                             }
@@ -1492,8 +1515,7 @@ int main(int argc, char *argv[]) {
                                 if (dest) {
                                     Door *back = NULL;
                                     for (int j = 0; j < dest->doors; ++j) {
-                                        if (0 == strcmp(dest->door[j].dest,
-                                                        current->name)) {
+                                        if (dest->door[j].dest == current->id) {
                                             back = &dest->door[j];
                                             break;
                                         }
