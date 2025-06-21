@@ -6,6 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#ifndef PI
+#define PI 3.14159265358979323846
+#endif
 /*
  * TODO: port features from pygame_adventure.py
  * - Show floating damage numbers and health bars
@@ -582,6 +586,46 @@ static void
 draw_prop(SDL_Renderer *renderer, SDL_Rect rect) {
     SDL_SetRenderDrawColor(renderer, 128, 128, 0, 255);
     SDL_RenderDrawRect(renderer, &rect);
+}
+
+static void
+draw_ellipse(SDL_Renderer *renderer, SDL_Rect rect) {
+    int cx = rect.x + rect.w / 2;
+    int cy = rect.y + rect.h / 2;
+    int rx = rect.w / 2;
+    int ry = rect.h / 2;
+    int px = cx + rx;
+    int py = cy;
+    for (int deg = 6; deg <= 360; deg += 6) {
+        double rad = (double)deg * (PI / 180.0);
+        int    x   = cx + (int)(cos(rad) * rx);
+        int    y   = cy + (int)(sin(rad) * ry);
+        SDL_RenderDrawLine(renderer, px, py, x, y);
+        px = x;
+        py = y;
+    }
+}
+
+static void
+draw_room_bounds(SDL_Renderer *renderer, char const *shape) {
+    SDL_SetRenderDrawColor(renderer, 0, 0, 139, 255);
+    if (0 == strcmp(shape, "circle")) {
+        draw_ellipse(renderer, (SDL_Rect){100, 80, 440, 320});
+    } else if (0 == strcmp(shape, "wide")) {
+        SDL_Rect r = {40, 200, 560, 80};
+        SDL_RenderDrawRect(renderer, &r);
+    } else if (0 == strcmp(shape, "tall")) {
+        SDL_Rect r = {260, 40, 120, 400};
+        SDL_RenderDrawRect(renderer, &r);
+    } else if (0 == strcmp(shape, "control")) {
+        SDL_Point p[] = {{320, 60},  {380, 120}, {380, 360},
+                         {320, 420}, {260, 360}, {260, 120},
+                         {320, 60}};
+        SDL_RenderDrawLines(renderer, p, 7);
+    } else {
+        SDL_Rect r = {120, 100, 400, 280};
+        SDL_RenderDrawRect(renderer, &r);
+    }
 }
 
 typedef void (*DrawBg)(void *);
@@ -1522,6 +1566,7 @@ int main(int argc, char *argv[]) {
         update_companions(&player);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
+        draw_room_bounds(renderer, current->shape);
         for (int i = 0; i < current->props; ++i) {
             draw_prop(renderer, current->prop[i].rect);
         }
