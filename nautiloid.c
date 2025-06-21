@@ -18,7 +18,7 @@
  * - Support moving between rooms and interacting with objects
  * - Display a game_end summary after escaping
  * - Use SDL_image to load textured sprites
- * - Implement a simple inventory system for the player
+ * - Add pathfinding for NPC movement
  */
 
 typedef struct {
@@ -79,6 +79,9 @@ typedef struct {
     int y;
     char name[64];
     ClassInfo const *info;
+    char inventory[8][32];
+    int  items;
+    char _pad[4];
 } Player;
 
 typedef struct {
@@ -195,6 +198,7 @@ defense_attribute(ClassInfo const *cls) {
     }
     return ATTR_STRENGTH;
 }
+
 
 static SDL_Texture *
 render_text(SDL_Renderer *renderer, TTF_Font *font, char const *text,
@@ -498,6 +502,31 @@ text_input(SDL_Renderer *renderer, TTF_Font *font, char const *prompt,
     SDL_StopTextInput();
 }
 
+static void
+inventory_add_item(Player *player, char const *item) {
+    if (player->items >= (int)(sizeof(player->inventory) / sizeof(player->inventory[0]))) {
+        return;
+    }
+    strncpy(player->inventory[player->items], item,
+            sizeof(player->inventory[0]) - 1);
+    player->inventory[player->items][sizeof(player->inventory[0]) - 1] = '\0';
+    player->items++;
+}
+
+static void
+show_inventory(SDL_Renderer *renderer, TTF_Font *font, Player const *player) {
+    char const *lines[9];
+    if (player->items == 0) {
+        lines[0] = "Your inventory is empty.";
+        show_message(renderer, font, lines, 1);
+        return;
+    }
+    for (int i = 0; i < player->items; ++i) {
+        lines[i] = player->inventory[i];
+    }
+    show_message(renderer, font, lines, player->items);
+}
+
 int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
@@ -547,7 +576,7 @@ int main(int argc, char *argv[]) {
     char const *lines[] = {buffer, "Press SPACE to continue"};
     show_message(renderer, font, lines, 2);
 
-    Player player = {320, 240, "", &classes[class_idx]};
+    Player player = {320, 240, "", &classes[class_idx], {{0}}, 0, {0}};
     strncpy(player.name, name, sizeof(player.name) - 1);
     Chest chest[] = {{{280, 240, 32, 24}, false, {0}}};
     Door door[]   = {{{500, 220, 40, 40}, false, {0}}};
@@ -574,7 +603,9 @@ int main(int argc, char *argv[]) {
                     if (!chest[0].opened &&
                         SDL_HasIntersection(&pr, &chest[0].rect)) {
                         chest[0].opened = true;
-                        char const *msg[] = {"You find a rusty dagger!"};
+                        inventory_add_item(&player, "Rusty Dagger");
+                        char const *msg[] =
+                            {"You find a rusty dagger! (added to inventory)"};
                         show_message(renderer, font, msg, 1);
                     } else if (SDL_HasIntersection(&pr, &door[0].rect)) {
                         char const *msg[] = {"The door is locked."};
@@ -589,6 +620,9 @@ int main(int argc, char *argv[]) {
                     } else if (SDL_HasIntersection(&pr, &cleric_rect)) {
                         cleric_dialog(renderer, font);
                     }
+                }
+                if (e.key.keysym.sym == SDLK_i) {
+                    show_inventory(renderer, font, &player);
                 }
             }
         }
