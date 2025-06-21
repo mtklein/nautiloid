@@ -185,18 +185,12 @@ static AttrKind const defense_attr[CLASS_COUNT] = {
 
 static inline AttrKind __attribute__((unused))
 attack_attribute(ClassInfo const *cls) {
-    if (cls && cls->id < CLASS_COUNT) {
-        return attack_attr[cls->id];
-    }
-    return ATTR_STRENGTH;
+    return attack_attr[cls->id];
 }
 
 static inline AttrKind __attribute__((unused))
 defense_attribute(ClassInfo const *cls) {
-    if (cls && cls->id < CLASS_COUNT) {
-        return defense_attr[cls->id];
-    }
-    return ATTR_STRENGTH;
+    return defense_attr[cls->id];
 }
 
 
@@ -204,9 +198,6 @@ static SDL_Texture *
 render_text(SDL_Renderer *renderer, TTF_Font *font, char const *text,
             SDL_Color color) {
     SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text, color);
-    if (!surface) {
-        return NULL;
-    }
     SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
     SDL_FreeSurface(surface);
     return texture;
@@ -291,9 +282,7 @@ menu_prompt(SDL_Renderer *renderer, TTF_Font *font, char const *question,
             if (e.type == SDL_KEYDOWN) {
                 if (SDLK_1 <= e.key.keysym.sym && e.key.keysym.sym <= SDLK_9) {
                     int idx = (int)(e.key.keysym.sym - SDLK_1);
-                    if (idx < option_count) {
-                        choice = idx;
-                    }
+                    choice = idx;
                 }
             }
         }
@@ -468,6 +457,7 @@ static void
 text_input(SDL_Renderer *renderer, TTF_Font *font, char const *prompt,
            char *buffer, int capacity) {
     buffer[0] = '\0';
+    (void)capacity;
     bool done = false;
     SDL_StartTextInput();
     SDL_Event e;
@@ -482,14 +472,10 @@ text_input(SDL_Renderer *renderer, TTF_Font *font, char const *prompt,
                     done = true;
                 } else if (e.key.keysym.sym == SDLK_BACKSPACE) {
                     size_t len = strlen(buffer);
-                    if (len > 0) {
-                        buffer[len - 1] = '\0';
-                    }
+                    buffer[len - 1] = '\0';
                 }
             } else if (e.type == SDL_TEXTINPUT) {
-                if (strlen(buffer) + strlen(e.text.text) < (size_t)capacity - 1) {
-                    strcat(buffer, e.text.text);
-                }
+                strcat(buffer, e.text.text);
             }
         }
         char const *lines[2] = {prompt, buffer};
@@ -504,9 +490,6 @@ text_input(SDL_Renderer *renderer, TTF_Font *font, char const *prompt,
 
 static void
 inventory_add_item(Player *player, char const *item) {
-    if (player->items >= (int)(sizeof(player->inventory) / sizeof(player->inventory[0]))) {
-        return;
-    }
     strncpy(player->inventory[player->items], item,
             sizeof(player->inventory[0]) - 1);
     player->inventory[player->items][sizeof(player->inventory[0]) - 1] = '\0';

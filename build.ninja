@@ -9,12 +9,12 @@ warn = -Weverything $
     -Wno-unsafe-buffer-usage $
 
 rule compile
-    command = $cc -g -O1 -Werror $warn -fcolor-diagnostics $cflags -MD -MF $out.d -c $in -o $out
+    command = $cc -g -O1 -Werror $warn -fsanitize=address,integer,undefined -fcolor-diagnostics $cflags -MD -MF $out.d -c $in -o $out
     depfile = $out.d
     deps    = gcc
 
 rule link
-    command = $cc $in -lm $ldflags -o $out
+    command = $cc -fsanitize=address,integer,undefined $in -lm $ldflags -o $out
 
 rule test
     command = ./$in $args > $out
