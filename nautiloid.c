@@ -461,7 +461,15 @@ star_wars_scroll(SDL_Renderer *renderer, TTF_Font *font,
                 fw->vy -= 0.05f;
             }
             fw->life++;
+            if (fw->life > 45 || fw->y > (float)height) {
+                fireworks[i] = fireworks[--fireworks_count];
+                i--;
+                continue;
+            }
             float ratio = 1.0f - (float)fw->life / 45.0f;
+            if (ratio < 0.0f) {
+                ratio = 0.0f;
+            }
             SDL_Color c = {
                 (Uint8)(fw->color.r * ratio),
                 (Uint8)(fw->color.g * ratio),
@@ -469,10 +477,6 @@ star_wars_scroll(SDL_Renderer *renderer, TTF_Font *font,
                 255};
             SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, 255);
             SDL_RenderDrawPoint(renderer, (int)fw->x, (int)fw->y);
-            if (fw->life > 45 || fw->y > (float)height) {
-                fireworks[i] = fireworks[--fireworks_count];
-                i--;
-            }
         }
         int y = offset;
         for (int i = 0; i < line_count && i < 16; ++i) {
