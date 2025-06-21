@@ -5,10 +5,11 @@ This document outlines the scope for the prototype.
 ## Features
 
 * **Character Creation:** Choose a name and class (Fighter, Rogue, Mage).
-* **Exploration:** Navigate text-based rooms representing a nautiloid ship.
+* **Exploration:** Navigate multiple text-based rooms connected by doors.
+* **Interactables:** Open chests and inspect objects to learn about the ship.
 * **Familiar Companion:** Discover a strange creature that can join you after a simple skill check.
-* **Melee Fighter Companion:** Rescue a warrior and battle imps together.
-* **Cleric Companion:** Meet a cleric who helps reach the ship's control room before it crashes.
+* **Melee Fighter Companion:** Rescue a warrior and engage in a short dialog when he joins.
+* **Cleric Companion:** Meet a cleric who converses with you before helping reach the ship's control room.
 
 The demo uses a simple text interface to focus on narrative flow and basic combat.
 
