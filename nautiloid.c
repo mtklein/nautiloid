@@ -271,6 +271,60 @@ draw_prop(SDL_Renderer *renderer, SDL_Rect rect) {
 }
 
 static void
+familiar_dialog(SDL_Renderer *renderer, TTF_Font *font) {
+    char const *opts[] = {"\"Who are you?\"",
+                           "\"Will you help me escape?\"",
+                           "\"Let's go.\""};
+    while (1) {
+        int idx = menu_prompt(renderer, font, "The familiar chirps softly.",
+                              opts, 3);
+        if (idx == 0) {
+            char const *msg[] =
+                {"It chitters about being bound to the ship by foul magic."};
+            show_message(renderer, font, msg, 1);
+        } else if (idx == 1) {
+            char const *msg[] = {"The creature nods enthusiastically."};
+            show_message(renderer, font, msg, 1);
+        } else {
+            char const *msg[] = {"It hops onto your shoulder."};
+            show_message(renderer, font, msg, 1);
+            break;
+        }
+    }
+}
+
+static void
+cleric_dialog(SDL_Renderer *renderer, TTF_Font *font) {
+    char const *opts[] = {"\"What happened here?\"",
+                           "\"Can you heal us?\"",
+                           "\"Let's leave this ship.\""};
+    while (1) {
+        int idx = menu_prompt(renderer, font, "The cleric steadies her breath.",
+                              opts, 3);
+        if (idx == 0) {
+            char const *msg[] =
+                {"'A ritual went terribly wrong,' she explains."};
+            show_message(renderer, font, msg, 1);
+        } else if (idx == 1) {
+            char const *msg[] =
+                {"She murmurs a prayer and a warm light surrounds you."};
+            show_message(renderer, font, msg, 1);
+        } else {
+            char const *msg[] =
+                {"She grabs a nearby pack and prepares to follow."};
+            show_message(renderer, font, msg, 1);
+            break;
+        }
+    }
+}
+
+static void
+imp_dialog(SDL_Renderer *renderer, TTF_Font *font) {
+    char const *msg[] = {"The imp hisses at you."};
+    show_message(renderer, font, msg, 1);
+}
+
+static void
 text_input(SDL_Renderer *renderer, TTF_Font *font, char const *prompt,
            char *buffer, int capacity) {
     buffer[0] = '\0';
@@ -367,6 +421,9 @@ int main(int argc, char *argv[]) {
     int imp_y      = 220;
     int cleric_x   = 320;
     int cleric_y   = 180;
+    SDL_Rect familiar_rect = {familiar_x - 8, familiar_y - 48, 16, 48};
+    SDL_Rect imp_rect      = {imp_x - 8, imp_y - 48, 16, 48};
+    SDL_Rect cleric_rect   = {cleric_x - 8, cleric_y - 48, 16, 48};
     bool running = true;
     SDL_Event e;
     while (running) {
@@ -390,6 +447,12 @@ int main(int argc, char *argv[]) {
                     } else if (SDL_HasIntersection(&pr, &prop)) {
                         char const *msg[] = {"A broken glass pod"};
                         show_message(renderer, font, msg, 1);
+                    } else if (SDL_HasIntersection(&pr, &familiar_rect)) {
+                        familiar_dialog(renderer, font);
+                    } else if (SDL_HasIntersection(&pr, &imp_rect)) {
+                        imp_dialog(renderer, font);
+                    } else if (SDL_HasIntersection(&pr, &cleric_rect)) {
+                        cleric_dialog(renderer, font);
                     }
                 }
             }
