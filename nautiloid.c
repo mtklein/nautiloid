@@ -17,7 +17,8 @@
  * - Implement combat_encounter() for turn-based fights
  * - Support moving between rooms and interacting with objects
  * - Display a game_end summary after escaping
- * - Add enumerated class IDs instead of relying on array order
+ * - Use SDL_image to load textured sprites
+ * - Implement a simple inventory system for the player
  */
 
 typedef struct {
@@ -41,6 +42,16 @@ typedef enum {
     ATTR_WISDOM
 } AttrKind;
 
+typedef enum {
+    CLASS_FIGHTER,
+    CLASS_ROGUE,
+    CLASS_MAGE,
+    CLASS_HEALER,
+    CLASS_BEAST,
+    CLASS_DEMON
+} ClassId;
+#define CLASS_COUNT (CLASS_DEMON + 1)
+
 static inline int __attribute__((unused))
 attribute_value(Attributes const *attributes, AttrKind kind) {
     if (kind == ATTR_STRENGTH) {
@@ -59,8 +70,8 @@ typedef struct {
     char const *name;
     Ability const *abilities;
     int ability_count;
-    char _pad[4];
     Attributes attributes;
+    ClassId     id;
 } ClassInfo;
 
 typedef struct {
@@ -138,20 +149,20 @@ static Ability const demon_abilities[] = {
 
 static ClassInfo const classes[] = {
     {.name = "Fighter", .abilities = fighter_abilities, .ability_count = 2,
-     .attributes = {8, 4, 3, 12}},
+     .attributes = {8, 4, 3, 12}, .id = CLASS_FIGHTER},
     {.name = "Rogue", .abilities = rogue_abilities, .ability_count = 2,
-     .attributes = {5, 8, 3, 10}},
+     .attributes = {5, 8, 3, 10}, .id = CLASS_ROGUE},
     {.name = "Mage", .abilities = mage_abilities, .ability_count = 2,
-     .attributes = {3, 5, 8, 8}},
+     .attributes = {3, 5, 8, 8}, .id = CLASS_MAGE},
     {.name = "Healer", .abilities = healer_abilities, .ability_count = 2,
-     .attributes = {4, 4, 8, 10}},
+     .attributes = {4, 4, 8, 10}, .id = CLASS_HEALER},
     {.name = "Beast", .abilities = beast_abilities, .ability_count = 2,
-     .attributes = {6, 6, 2, 8}},
+     .attributes = {6, 6, 2, 8}, .id = CLASS_BEAST},
     {.name = "Demon", .abilities = demon_abilities, .ability_count = 1,
-     .attributes = {5, 5, 5, 10}},
+     .attributes = {5, 5, 5, 10}, .id = CLASS_DEMON},
 };
 
-static AttrKind const attack_attr[] = {
+static AttrKind const attack_attr[CLASS_COUNT] = {
     ATTR_STRENGTH, /* Fighter */
     ATTR_AGILITY,  /* Rogue   */
     ATTR_WISDOM,   /* Mage    */
@@ -160,7 +171,7 @@ static AttrKind const attack_attr[] = {
     ATTR_STRENGTH  /* Demon   */
 };
 
-static AttrKind const defense_attr[] = {
+static AttrKind const defense_attr[CLASS_COUNT] = {
     ATTR_STRENGTH, /* Fighter */
     ATTR_AGILITY,  /* Rogue   */
     ATTR_WISDOM,   /* Mage    */
@@ -169,28 +180,20 @@ static AttrKind const defense_attr[] = {
     ATTR_STRENGTH  /* Demon   */
 };
 
-static int
-class_index(ClassInfo const *cls) {
-    for (size_t i = 0; i < sizeof(classes) / sizeof(classes[0]); ++i) {
-        if (cls == &classes[i]) {
-            return (int)i;
-        }
-    }
-    return -1;
-}
-
 static inline AttrKind __attribute__((unused))
 attack_attribute(ClassInfo const *cls) {
-    int idx = class_index(cls);
-    int count = (int)(sizeof(attack_attr) / sizeof(attack_attr[0]));
-    return (idx >= 0 && idx < count) ? attack_attr[idx] : ATTR_STRENGTH;
+    if (cls && cls->id < CLASS_COUNT) {
+        return attack_attr[cls->id];
+    }
+    return ATTR_STRENGTH;
 }
 
 static inline AttrKind __attribute__((unused))
 defense_attribute(ClassInfo const *cls) {
-    int idx = class_index(cls);
-    int count = (int)(sizeof(defense_attr) / sizeof(defense_attr[0]));
-    return (idx >= 0 && idx < count) ? defense_attr[idx] : ATTR_STRENGTH;
+    if (cls && cls->id < CLASS_COUNT) {
+        return defense_attr[cls->id];
+    }
+    return ATTR_STRENGTH;
 }
 
 static SDL_Texture *
@@ -532,11 +535,12 @@ int main(int argc, char *argv[]) {
 
     char name[64];
     text_input(renderer, font, "Enter your name:", name, (int)sizeof(name));
-    char const *class_names[] = {
-        "Fighter", "Rogue", "Mage", "Healer", "Beast", "Demon"};
+    char const *class_names[CLASS_COUNT];
+    for (int i = 0; i < CLASS_COUNT; ++i) {
+        class_names[i] = classes[i].name;
+    }
     int class_idx =
-        menu_prompt(renderer, font, "Choose a class", class_names,
-                    (int)(sizeof(class_names) / sizeof(class_names[0])));
+        menu_prompt(renderer, font, "Choose a class", class_names, CLASS_COUNT);
     static char buffer[128];
     snprintf(buffer, sizeof(buffer), "Welcome %s the %s!", name,
              class_names[class_idx]);
@@ -621,12 +625,18 @@ int main(int argc, char *argv[]) {
         draw_familiar(renderer, npc[0].x, npc[0].y);
         draw_imp(renderer, npc[1].x, npc[1].y);
         draw_cleric(renderer, npc[2].x, npc[2].y);
-        if (strcmp(player.info->name, "Fighter") == 0) {
+        if (player.info->id == CLASS_FIGHTER) {
             draw_warrior(renderer, player.x, player.y);
-        } else if (strcmp(player.info->name, "Rogue") == 0) {
+        } else if (player.info->id == CLASS_ROGUE) {
             draw_rogue(renderer, player.x, player.y);
-        } else {
+        } else if (player.info->id == CLASS_MAGE) {
             draw_mage(renderer, player.x, player.y);
+        } else if (player.info->id == CLASS_HEALER) {
+            draw_cleric(renderer, player.x, player.y);
+        } else if (player.info->id == CLASS_BEAST) {
+            draw_familiar(renderer, player.x, player.y);
+        } else if (player.info->id == CLASS_DEMON) {
+            draw_imp(renderer, player.x, player.y);
         }
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
