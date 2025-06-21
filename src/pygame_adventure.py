@@ -44,34 +44,44 @@ CLASS_ATTRIBUTES: Dict[str, Attributes] = {
 }
 
 
-# Stick figure drawing helpers
+# Sprite drawing helpers
 
-def draw_stick_figure(screen: pygame.Surface, x: int, y: int, color: pygame.Color) -> None:
-    """Draw a simple stick figure centered at (x, y)."""
-    pygame.draw.circle(screen, color, (x, y - 8), 8, 2)
-    pygame.draw.line(screen, color, (x, y), (x, y + 16), 2)
-    pygame.draw.line(screen, color, (x, y + 4), (x - 8, y + 12), 2)
-    pygame.draw.line(screen, color, (x, y + 4), (x + 8, y + 12), 2)
-    pygame.draw.line(screen, color, (x, y + 16), (x - 8, y + 24), 2)
-    pygame.draw.line(screen, color, (x, y + 16), (x + 8, y + 24), 2)
+def draw_humanoid(screen: pygame.Surface, x: int, y: int, color: pygame.Color) -> None:
+    """Draw a 16x48 style humanoid sprite with (x, y) at the feet."""
+    # head
+    pygame.draw.rect(screen, color, pygame.Rect(x - 5, y - 48, 10, 10))
+    # torso
+    pygame.draw.rect(screen, color, pygame.Rect(x - 4, y - 38, 8, 20))
+    # arms
+    pygame.draw.rect(screen, color, pygame.Rect(x - 8, y - 38, 3, 15))
+    pygame.draw.rect(screen, color, pygame.Rect(x + 5, y - 38, 3, 15))
+    # legs
+    pygame.draw.rect(screen, color, pygame.Rect(x - 4, y - 18, 3, 18))
+    pygame.draw.rect(screen, color, pygame.Rect(x + 1, y - 18, 3, 18))
 
 
 def draw_warrior(screen: pygame.Surface, x: int, y: int) -> None:
-    """Stick figure with a small sword."""
-    draw_stick_figure(screen, x, y, pygame.Color("red"))
-    pygame.draw.line(screen, pygame.Color("silver"), (x + 6, y + 12), (x + 16, y + 2), 2)
+    """Humanoid sprite with a small sword."""
+    draw_humanoid(screen, x, y, pygame.Color("red"))
+    pygame.draw.line(screen, pygame.Color("silver"), (x + 6, y - 20), (x + 10, y - 36), 2)
 
 
 def draw_cleric(screen: pygame.Surface, x: int, y: int) -> None:
-    """Stick figure with a holy symbol."""
-    draw_stick_figure(screen, x, y, pygame.Color("yellow"))
-    pygame.draw.line(screen, pygame.Color("white"), (x, y + 5), (x, y - 10), 2)
-    pygame.draw.line(screen, pygame.Color("white"), (x - 4, y - 2), (x + 4, y - 2), 2)
+    """Humanoid sprite with a holy symbol."""
+    draw_humanoid(screen, x, y, pygame.Color("yellow"))
+    pygame.draw.line(screen, pygame.Color("white"), (x, y - 28), (x, y - 44), 2)
+    pygame.draw.line(screen, pygame.Color("white"), (x - 4, y - 36), (x + 4, y - 36), 2)
 
 
 def draw_familiar(screen: pygame.Surface, x: int, y: int) -> None:
-    """Simple blob for the familiar."""
-    pygame.draw.circle(screen, pygame.Color("cyan"), (x, y), 6)
+    """Small blob-like creature."""
+    pygame.draw.circle(screen, pygame.Color("cyan"), (x, y - 8), 8)
+
+def draw_imp(screen: pygame.Surface, x: int, y: int) -> None:
+    """Small imp enemy."""
+    pygame.draw.rect(screen, pygame.Color("red"), pygame.Rect(x - 6, y - 16, 12, 16))
+    pygame.draw.line(screen, pygame.Color("black"), (x - 4, y - 16), (x - 2, y - 20), 2)
+    pygame.draw.line(screen, pygame.Color("black"), (x + 4, y - 16), (x + 2, y - 20), 2)
 
 
 def draw_chest(screen: pygame.Surface, rect: pygame.Rect, opened: bool) -> None:
@@ -116,15 +126,17 @@ def draw_gradient_rect(surface: pygame.Surface, rect: pygame.Rect, top: pygame.C
 
 
 def get_face_surface(npc: NPC) -> pygame.Surface:
-    surf = pygame.Surface((32, 32), pygame.SRCALPHA)
+    surf = pygame.Surface((32, 48), pygame.SRCALPHA)
     if npc.name == "Warrior":
-        draw_warrior(surf, 16, 24)
+        draw_warrior(surf, 16, 48)
     elif npc.name == "Cleric":
-        draw_cleric(surf, 16, 24)
+        draw_cleric(surf, 16, 48)
     elif npc.name == "Familiar":
-        draw_familiar(surf, 16, 16)
+        draw_familiar(surf, 16, 24)
+    elif npc.name == "Imp":
+        draw_imp(surf, 16, 24)
     else:
-        draw_stick_figure(surf, 16, 24, npc.color)
+        draw_humanoid(surf, 16, 48, npc.color)
     return surf
 
 
@@ -170,7 +182,7 @@ class NPC:
     attributes: Attributes = field(default_factory=lambda: Attributes(5, 5, 5, 10))
 
     def rect(self) -> pygame.Rect:
-        return pygame.Rect(self.x - 16, self.y - 16, 32, 32)
+        return pygame.Rect(self.x - 8, self.y - 48, 16, 48)
 
     def draw(self, screen: pygame.Surface) -> None:
         if self.name == "Warrior":
@@ -179,8 +191,10 @@ class NPC:
             draw_cleric(screen, self.x, self.y)
         elif self.name == "Familiar":
             draw_familiar(screen, self.x, self.y)
+        elif self.name == "Imp":
+            draw_imp(screen, self.x, self.y)
         else:
-            draw_stick_figure(screen, self.x, self.y, self.color)
+            draw_humanoid(screen, self.x, self.y, self.color)
 
 
 def show_message(screen: pygame.Surface, font: pygame.font.Font, lines: List[str]) -> None:
@@ -346,10 +360,10 @@ class Player:
     attributes: Attributes = field(default_factory=lambda: Attributes(5, 5, 5, 10))
 
     def rect(self) -> pygame.Rect:
-        return pygame.Rect(self.x - 16, self.y - 16, 32, 32)
+        return pygame.Rect(self.x - 8, self.y - 48, 16, 48)
 
     def draw(self, screen: pygame.Surface) -> None:
-        draw_stick_figure(screen, self.x, self.y, pygame.Color("white"))
+        draw_humanoid(screen, self.x, self.y, pygame.Color("white"))
 
 
 def update_companions(player: Player) -> None:
