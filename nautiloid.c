@@ -330,6 +330,88 @@ show_message(SDL_Renderer *renderer, TTF_Font *font,
     }
 }
 
+typedef struct {
+    float     x;
+    float     y;
+    float     vy;
+    SDL_Color color;
+    int       life;
+} Firework;
+
+static void
+star_wars_scroll(SDL_Renderer *renderer, TTF_Font *font,
+                 char const *lines[], int line_count) {
+    int width  = 0;
+    int height = 0;
+    SDL_GetRendererOutputSize(renderer, &width, &height);
+    SDL_Texture *texts[16];
+    SDL_Rect     rects[16];
+    int          total = 0;
+    for (int i = 0; i < line_count && i < 16; ++i) {
+        texts[i] =
+            render_text(renderer, font, lines[i], (SDL_Color){255, 255, 0, 255});
+        rects[i] = (SDL_Rect){0, 0, 0, 0};
+        SDL_QueryTexture(texts[i], NULL, NULL, &rects[i].w, &rects[i].h);
+        rects[i].x = (width - rects[i].w) / 2;
+        total += rects[i].h + 8;
+    }
+    Firework fireworks[32];
+    int      fw_count = 0;
+    int      offset   = height;
+    int      hold     = 0;
+    bool     running  = true;
+    SDL_Event e;
+    while (running) {
+        while (SDL_PollEvent(&e)) {
+            if (e.type == SDL_QUIT) {
+                exit(0);
+            }
+        }
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        if (fw_count < 32 && (rand() % 100) < 5) {
+            fireworks[fw_count] = (Firework){
+                (float)(50 + rand() % (width - 100)),
+                (float)height,
+                2.0f + (float)(rand() % 20) / 5.0f,
+                {(Uint8)(128 + rand() % 128),
+                 (Uint8)(128 + rand() % 128),
+                 (Uint8)(128 + rand() % 128),
+                 255},
+                0};
+            fw_count++;
+        }
+        for (int i = 0; i < fw_count; ++i) {
+            Firework *fw = &fireworks[i];
+            fw->y -= fw->vy;
+            fw->life++;
+            SDL_SetRenderDrawColor(renderer, fw->color.r, fw->color.g,
+                                   fw->color.b, 255);
+            SDL_RenderDrawPoint(renderer, (int)fw->x, (int)fw->y);
+            if (fw->life > 60) {
+                fireworks[i] = fireworks[--fw_count];
+                i--;
+            }
+        }
+        int y = offset;
+        for (int i = 0; i < line_count && i < 16; ++i) {
+            rects[i].y = y;
+            SDL_RenderCopy(renderer, texts[i], NULL, &rects[i]);
+            y += rects[i].h + 8;
+        }
+        SDL_RenderPresent(renderer);
+        SDL_Delay(16);
+        if (offset + total > 0) {
+            offset--;
+        } else if (++hold > 60) {
+            running = false;
+        }
+    }
+    for (int i = 0; i < line_count && i < 16; ++i) {
+        SDL_DestroyTexture(texts[i]);
+    }
+}
+
 static int
 menu_prompt(SDL_Renderer *renderer, TTF_Font *font, char const *question,
             char const *options[], int option_count,
@@ -380,20 +462,30 @@ draw_humanoid(SDL_Renderer *renderer, int x, int y, SDL_Color color) {
     SDL_RenderFillRect(renderer, &right_arm);
     SDL_RenderFillRect(renderer, &left_leg);
     SDL_RenderFillRect(renderer, &right_leg);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_Rect eye1 = {x - 3, y - 46, 2, 2};
+    SDL_Rect eye2 = {x + 1, y - 46, 2, 2};
+    SDL_RenderFillRect(renderer, &eye1);
+    SDL_RenderFillRect(renderer, &eye2);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderDrawLine(renderer, x - 2, y - 42, x + 2, y - 42);
 }
 
 static void
 draw_warrior(SDL_Renderer *renderer, int x, int y) {
-    draw_humanoid(renderer, x, y, (SDL_Color){255, 0, 0, 255});
+    draw_humanoid(renderer, x, y, (SDL_Color){178, 34, 34, 255});
+    SDL_SetRenderDrawColor(renderer, 160, 82, 45, 255);
+    SDL_Rect band = {x - 5, y - 52, 10, 3};
+    SDL_RenderFillRect(renderer, &band);
     SDL_SetRenderDrawColor(renderer, 192, 192, 192, 255);
     SDL_RenderDrawLine(renderer, x + 6, y - 20, x + 10, y - 36);
 }
 
 static void
 draw_rogue(SDL_Renderer *renderer, int x, int y) {
-    draw_humanoid(renderer, x, y, (SDL_Color){34, 139, 34, 255});
+    draw_humanoid(renderer, x, y, (SDL_Color){107, 142, 35, 255});
     SDL_Rect hood = {x - 6, y - 48, 12, 8};
-    SDL_SetRenderDrawColor(renderer, 0, 100, 0, 255);
+    SDL_SetRenderDrawColor(renderer, 85, 107, 47, 255);
     SDL_RenderFillRect(renderer, &hood);
     SDL_SetRenderDrawColor(renderer, 192, 192, 192, 255);
     SDL_RenderDrawLine(renderer, x + 6, y - 20, x + 10, y - 30);
@@ -401,7 +493,13 @@ draw_rogue(SDL_Renderer *renderer, int x, int y) {
 
 static void
 draw_mage(SDL_Renderer *renderer, int x, int y) {
-    draw_humanoid(renderer, x, y, (SDL_Color){0, 0, 128, 255});
+    draw_humanoid(renderer, x, y, (SDL_Color){106, 90, 205, 255});
+    SDL_SetRenderDrawColor(renderer, 128, 0, 128, 255);
+    for (int i = 0; i < 12; ++i) {
+        int dx = i / 2;
+        SDL_RenderDrawLine(renderer, x - dx, y - 48 - i,
+                           x + dx, y - 48 - i);
+    }
     SDL_SetRenderDrawColor(renderer, 160, 82, 45, 255);
     SDL_RenderDrawLine(renderer, x + 6, y - 20, x + 6, y - 40);
     SDL_RenderDrawLine(renderer, x + 6, y - 40, x + 6, y - 42);
@@ -410,7 +508,10 @@ draw_mage(SDL_Renderer *renderer, int x, int y) {
 
 static void
 draw_cleric(SDL_Renderer *renderer, int x, int y) {
-    draw_humanoid(renderer, x, y, (SDL_Color){255, 255, 0, 255});
+    draw_humanoid(renderer, x, y, (SDL_Color){135, 206, 235, 255});
+    SDL_SetRenderDrawColor(renderer, 240, 230, 140, 255);
+    SDL_Rect hat = {x - 5, y - 52, 10, 2};
+    SDL_RenderFillRect(renderer, &hat);
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     SDL_RenderDrawLine(renderer, x, y - 28, x, y - 44);
     SDL_RenderDrawLine(renderer, x - 4, y - 36, x + 4, y - 36);
@@ -1197,7 +1298,7 @@ game_end(SDL_Renderer *renderer, TTF_Font *font, Player const *player) {
             n++;
         }
     }
-    show_message(renderer, font, msgs, n);
+    star_wars_scroll(renderer, font, msgs, n);
 }
 
 int main(int argc, char *argv[]) {

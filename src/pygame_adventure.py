@@ -81,6 +81,9 @@ def draw_humanoid(screen: pygame.Surface, x: int, y: int, color: pygame.Color) -
     """Draw a 16x48 style humanoid sprite with (x, y) at the feet."""
     # head
     pygame.draw.rect(screen, color, pygame.Rect(x - 5, y - 48, 10, 10))
+    pygame.draw.rect(screen, pygame.Color("white"), pygame.Rect(x - 3, y - 46, 2, 2))
+    pygame.draw.rect(screen, pygame.Color("white"), pygame.Rect(x + 1, y - 46, 2, 2))
+    pygame.draw.rect(screen, pygame.Color("black"), pygame.Rect(x - 2, y - 42, 4, 1))
     # torso
     pygame.draw.rect(screen, color, pygame.Rect(x - 4, y - 38, 8, 20))
     # arms
@@ -93,13 +96,15 @@ def draw_humanoid(screen: pygame.Surface, x: int, y: int, color: pygame.Color) -
 
 def draw_warrior(screen: pygame.Surface, x: int, y: int) -> None:
     """Humanoid sprite with a small sword."""
-    draw_humanoid(screen, x, y, pygame.Color("red"))
+    draw_humanoid(screen, x, y, pygame.Color("firebrick"))
+    pygame.draw.rect(screen, pygame.Color("sienna"), pygame.Rect(x - 5, y - 52, 10, 3))
     pygame.draw.line(screen, pygame.Color("silver"), (x + 6, y - 20), (x + 10, y - 36), 2)
 
 
 def draw_cleric(screen: pygame.Surface, x: int, y: int) -> None:
     """Humanoid sprite with a holy symbol."""
-    draw_humanoid(screen, x, y, pygame.Color("yellow"))
+    draw_humanoid(screen, x, y, pygame.Color("skyblue"))
+    pygame.draw.rect(screen, pygame.Color("khaki"), pygame.Rect(x - 5, y - 52, 10, 2))
     pygame.draw.line(screen, pygame.Color("white"), (x, y - 28), (x, y - 44), 2)
     pygame.draw.line(screen, pygame.Color("white"), (x - 4, y - 36), (x + 4, y - 36), 2)
 
@@ -117,14 +122,19 @@ def draw_imp(screen: pygame.Surface, x: int, y: int) -> None:
 
 def draw_rogue(screen: pygame.Surface, x: int, y: int) -> None:
     """Humanoid sprite with a dagger and hood."""
-    draw_humanoid(screen, x, y, pygame.Color("forestgreen"))
-    pygame.draw.rect(screen, pygame.Color("darkgreen"), pygame.Rect(x - 6, y - 48, 12, 8))
+    draw_humanoid(screen, x, y, pygame.Color("olivedrab"))
+    pygame.draw.rect(screen, pygame.Color("darkolivegreen"), pygame.Rect(x - 6, y - 48, 12, 8))
     pygame.draw.line(screen, pygame.Color("silver"), (x + 6, y - 20), (x + 10, y - 30), 2)
 
 
 def draw_mage(screen: pygame.Surface, x: int, y: int) -> None:
     """Humanoid sprite with a staff."""
-    draw_humanoid(screen, x, y, pygame.Color("navy"))
+    draw_humanoid(screen, x, y, pygame.Color("slateblue"))
+    pygame.draw.polygon(
+        screen,
+        pygame.Color("purple"),
+        [(x - 6, y - 48), (x + 6, y - 48), (x, y - 60)],
+    )
     pygame.draw.line(screen, pygame.Color("sienna"), (x + 6, y - 20), (x + 6, y - 40), 2)
     pygame.draw.circle(screen, pygame.Color("sienna"), (x + 6, y - 42), 3)
 
@@ -308,6 +318,54 @@ def show_inventory(
     else:
         lines = ["Your inventory is empty."]
     show_message(screen, font, lines)
+
+
+def star_wars_scroll(screen: pygame.Surface, font: pygame.font.Font, lines: List[str]) -> None:
+    """Scroll lines upward with simple fireworks."""
+    clock = pygame.time.Clock()
+    surfaces = [font.render(line, True, pygame.Color("yellow")) for line in lines]
+    total_h = sum(s.get_height() + 8 for s in surfaces)
+    offset = screen.get_height()
+    fireworks: List[dict] = []
+    hold = 0
+    while offset + total_h > 0 or hold < 60:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+        screen.fill((0, 0, 0))
+        if random.random() < 0.05:
+            fireworks.append(
+                {
+                    "x": random.randint(50, screen.get_width() - 50),
+                    "y": screen.get_height(),
+                    "vy": random.uniform(2.0, 4.0),
+                    "color": pygame.Color(
+                        random.randint(128, 255),
+                        random.randint(128, 255),
+                        random.randint(128, 255),
+                    ),
+                    "life": 0,
+                }
+            )
+        for fw in fireworks[:]:
+            fw["y"] -= fw["vy"]
+            fw["life"] += 1
+            pygame.draw.circle(screen, fw["color"], (int(fw["x"]), int(fw["y"])), 2)
+            if fw["life"] > 60:
+                fireworks.remove(fw)
+        y = offset
+        for surf in surfaces:
+            rect = surf.get_rect(centerx=screen.get_width() // 2)
+            rect.y = y
+            screen.blit(surf, rect)
+            y += surf.get_height() + 8
+        pygame.display.flip()
+        clock.tick(60)
+        if offset + total_h > 0:
+            offset -= 1
+        else:
+            hold += 1
 
 
 def interaction_hint(player: Player, room: Room) -> Optional[str]:
@@ -886,7 +944,7 @@ def game_end(screen: pygame.Surface, font: pygame.font.Font, player: Player) -> 
         lines.append("Inventory:")
         for item in player.inventory:
             lines.append(f" - {item}")
-    show_message(screen, font, lines)
+    star_wars_scroll(screen, font, lines)
 
 
 def main() -> None:
