@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 
 import pygame
+import random
 
 
 @dataclass
@@ -41,6 +42,27 @@ CLASS_ATTRIBUTES: Dict[str, Attributes] = {
     "Healer": Attributes(4, 4, 8, 10),
     "Beast": Attributes(6, 6, 2, 8),
     "Demon": Attributes(5, 5, 5, 10),
+}
+
+# Which attribute each class uses when attacking or defending. This
+# lets combat compare the attacker's focus stat with the defender's
+# appropriate stat.
+ATTACK_ATTRIBUTE: Dict[str, str] = {
+    "Fighter": "strength",
+    "Rogue": "agility",
+    "Mage": "wisdom",
+    "Healer": "wisdom",
+    "Beast": "strength",
+    "Demon": "strength",
+}
+
+DEFENSE_ATTRIBUTE: Dict[str, str] = {
+    "Fighter": "strength",
+    "Rogue": "agility",
+    "Mage": "wisdom",
+    "Healer": "wisdom",
+    "Beast": "agility",
+    "Demon": "strength",
 }
 
 
@@ -365,6 +387,31 @@ def update_companions(player: Player) -> None:
         leader_x, leader_y = comp.x, comp.y
 
 
+def float_number(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    lines: List[str],
+    text: str,
+    color: pygame.Color,
+    pos: tuple[int, int],
+) -> None:
+    """Show text box with lines and a floating number at pos."""
+    clock = pygame.time.Clock()
+    for i in range(30):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+        screen.fill((0, 0, 0))
+        draw_text_box(screen, font, lines)
+        rise_y = pos[1] - i
+        num_surf = font.render(text, True, color)
+        num_rect = num_surf.get_rect(center=(pos[0], rise_y))
+        screen.blit(num_surf, num_rect)
+        pygame.display.flip()
+        clock.tick(60)
+
+
 def combat(screen: pygame.Surface, font: pygame.font.Font, player: Player, enemy: NPC) -> bool:
     """Simple turn-based combat. Returns True if player wins."""
     p_hp = player.attributes.hp
@@ -393,16 +440,61 @@ def combat(screen: pygame.Surface, font: pygame.font.Font, player: Player, enemy
                 get_face_surface(NPC(player.name, pygame.Color("white"), 0, 0)),
             )
             ability = player.abilities[idx]
+            atk_attr = ATTACK_ATTRIBUTE.get(player.char_class, "strength")
+            def_attr = DEFENSE_ATTRIBUTE.get(enemy.char_class, "strength")
             if ability.target == "enemy":
-                e_hp -= ability.power + player.attributes.strength // 2
+                attack_val = ability.power + getattr(player.attributes, atk_attr)
+                defense_val = getattr(enemy.attributes, def_attr)
+                dmg = max(1, attack_val - defense_val // 2)
+                critical = False
+                if random.random() < 0.1:
+                    dmg *= 2
+                    critical = True
+                e_hp -= dmg
                 show_message(screen, font, [f"{player.name} uses {ability.name}!"])
+                color = pygame.Color("red") if critical else pygame.Color("white")
+                float_number(
+                    screen,
+                    font,
+                    [f"{player.name}: {p_hp} HP", f"{enemy.name}: {e_hp} HP"],
+                    f"-{dmg}",
+                    color,
+                    (460, 220),
+                )
             else:
-                p_hp = min(player.attributes.hp, p_hp + ability.power)
+                heal = ability.power + getattr(player.attributes, atk_attr) // 2
+                p_hp = min(player.attributes.hp, p_hp + heal)
                 show_message(screen, font, [f"{player.name} uses {ability.name}!"])
+                float_number(
+                    screen,
+                    font,
+                    [f"{player.name}: {p_hp} HP", f"{enemy.name}: {e_hp} HP"],
+                    f"+{heal}",
+                    pygame.Color("green"),
+                    (180, 220),
+                )
         else:
             ability = enemy.abilities[0] if enemy.abilities else Ability("Attack", "enemy", 2)
-            p_hp -= ability.power
+            atk_attr = ATTACK_ATTRIBUTE.get(enemy.char_class, "strength")
+            def_attr = DEFENSE_ATTRIBUTE.get(player.char_class, "strength")
+            attack_val = ability.power + getattr(enemy.attributes, atk_attr)
+            defense_val = getattr(player.attributes, def_attr)
+            dmg = max(1, attack_val - defense_val // 2)
+            critical = False
+            if random.random() < 0.1:
+                dmg *= 2
+                critical = True
+            p_hp -= dmg
             show_message(screen, font, [f"{enemy.name} attacks!"])
+            color = pygame.Color("red") if critical else pygame.Color("white")
+            float_number(
+                screen,
+                font,
+                [f"{player.name}: {p_hp} HP", f"{enemy.name}: {e_hp} HP"],
+                f"-{dmg}",
+                color,
+                (180, 220),
+            )
         turn_player = not turn_player
 
     if p_hp > 0:
