@@ -53,22 +53,7 @@ typedef enum {
     CLASS_BEAST,
     CLASS_DEMON
 } ClassId;
-#define CLASS_COUNT (CLASS_DEMON + 1)
 #define PLAYABLE_CLASS_COUNT 4
-
-static inline int __attribute__((unused))
-attribute_value(Attributes const *attributes, AttrKind kind) {
-    if (kind == ATTR_STRENGTH) {
-        return attributes->strength;
-    }
-    if (kind == ATTR_AGILITY) {
-        return attributes->agility;
-    }
-    if (kind == ATTR_WISDOM) {
-        return attributes->wisdom;
-    }
-    return 0;
-}
 
 typedef struct {
     char const *name;
@@ -185,35 +170,6 @@ static ClassInfo const classes[] = {
     {.name = "Demon", .abilities = demon_abilities, .ability_count = 1,
      .attributes = {5, 5, 5, 10}, .id = CLASS_DEMON},
 };
-
-static AttrKind const attack_attr[CLASS_COUNT] = {
-    ATTR_STRENGTH, /* Fighter */
-    ATTR_AGILITY,  /* Rogue   */
-    ATTR_WISDOM,   /* Mage    */
-    ATTR_WISDOM,   /* Healer  */
-    ATTR_STRENGTH, /* Beast   */
-    ATTR_STRENGTH  /* Demon   */
-};
-
-static AttrKind const defense_attr[CLASS_COUNT] = {
-    ATTR_STRENGTH, /* Fighter */
-    ATTR_AGILITY,  /* Rogue   */
-    ATTR_WISDOM,   /* Mage    */
-    ATTR_WISDOM,   /* Healer  */
-    ATTR_AGILITY,  /* Beast   */
-    ATTR_STRENGTH  /* Demon   */
-};
-
-static inline AttrKind __attribute__((unused))
-attack_attribute(ClassInfo const *cls) {
-    return attack_attr[cls->id];
-}
-
-static inline AttrKind __attribute__((unused))
-defense_attribute(ClassInfo const *cls) {
-    return defense_attr[cls->id];
-}
-
 
 static SDL_Texture *
 render_text(SDL_Renderer *renderer, TTF_Font *font, char const *text,
@@ -452,22 +408,6 @@ npc_face(SDL_Renderer *renderer, Npc const *npc) {
     return make_face(renderer, npc->draw);
 }
 
-static SDL_Texture * __attribute__((unused))
-class_face(SDL_Renderer *renderer, ClassId id) {
-    NpcDraw draw = draw_warrior;
-    if (id == CLASS_ROGUE) {
-        draw = draw_rogue;
-    } else if (id == CLASS_MAGE) {
-        draw = draw_mage;
-    } else if (id == CLASS_HEALER) {
-        draw = draw_cleric;
-    } else if (id == CLASS_BEAST) {
-        draw = draw_familiar;
-    } else if (id == CLASS_DEMON) {
-        draw = draw_imp;
-    }
-    return make_face(renderer, draw);
-}
 
 static void
 draw_chest(SDL_Renderer *renderer, SDL_Rect rect, bool opened) {
@@ -882,18 +822,25 @@ int main(int argc, char *argv[]) {
         draw_familiar(renderer, npc[0].x, npc[0].y);
         draw_imp(renderer, npc[1].x, npc[1].y);
         draw_cleric(renderer, npc[2].x, npc[2].y);
-        if (player.info->id == CLASS_FIGHTER) {
+        switch (player.info->id) {
+        case CLASS_FIGHTER:
             draw_warrior(renderer, player.x, player.y);
-        } else if (player.info->id == CLASS_ROGUE) {
+            break;
+        case CLASS_ROGUE:
             draw_rogue(renderer, player.x, player.y);
-        } else if (player.info->id == CLASS_MAGE) {
+            break;
+        case CLASS_MAGE:
             draw_mage(renderer, player.x, player.y);
-        } else if (player.info->id == CLASS_HEALER) {
+            break;
+        case CLASS_HEALER:
             draw_cleric(renderer, player.x, player.y);
-        } else if (player.info->id == CLASS_BEAST) {
+            break;
+        case CLASS_BEAST:
             draw_familiar(renderer, player.x, player.y);
-        } else if (player.info->id == CLASS_DEMON) {
+            break;
+        case CLASS_DEMON:
             draw_imp(renderer, player.x, player.y);
+            break;
         }
         for (int i = 0; i < player.companion_count; ++i) {
             Npc *comp = player.companions[i];

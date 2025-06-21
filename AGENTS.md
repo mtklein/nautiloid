@@ -24,3 +24,4 @@
 - Omit defensive bounds or null checks for internal code; sanitizers will catch these bugs.
 - Focus on matching `pygame_adventure.py` when completing TODO items. Put ideas
   unrelated to feature parity in the FUTURE list.
+- Do not use `__attribute__((unused))`; remove unused code instead.
