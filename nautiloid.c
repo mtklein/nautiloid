@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 /*
  * TODO: port features from pygame_adventure.py
  * - Show floating damage numbers and health bars
@@ -52,6 +53,7 @@ typedef enum {
     CLASS_DEMON
 } ClassId;
 #define PLAYABLE_CLASS_COUNT 4
+#define MAX_COMBATANTS      8
 
 typedef enum {
     ROOM_POD_ROOM,
@@ -185,6 +187,37 @@ static ClassInfo const classes[] = {
     {.name = "Demon", .abilities = demon_abilities, .ability_count = 1,
      .attributes = {5, 5, 5, 10}, .id = CLASS_DEMON},
 };
+
+static AttrKind const attack_attr[] = {
+    [CLASS_FIGHTER] = ATTR_STRENGTH,
+    [CLASS_ROGUE]   = ATTR_AGILITY,
+    [CLASS_MAGE]    = ATTR_WISDOM,
+    [CLASS_HEALER]  = ATTR_WISDOM,
+    [CLASS_BEAST]   = ATTR_STRENGTH,
+    [CLASS_DEMON]   = ATTR_STRENGTH,
+};
+
+static AttrKind const defense_attr[] = {
+    [CLASS_FIGHTER] = ATTR_STRENGTH,
+    [CLASS_ROGUE]   = ATTR_AGILITY,
+    [CLASS_MAGE]    = ATTR_WISDOM,
+    [CLASS_HEALER]  = ATTR_WISDOM,
+    [CLASS_BEAST]   = ATTR_AGILITY,
+    [CLASS_DEMON]   = ATTR_STRENGTH,
+};
+
+static int
+attr_value(Attributes const *a, AttrKind kind) {
+    switch (kind) {
+    case ATTR_STRENGTH:
+        return a->strength;
+    case ATTR_AGILITY:
+        return a->agility;
+    case ATTR_WISDOM:
+        return a->wisdom;
+    }
+    return 0;
+}
 
 static SDL_Texture *
 render_text(SDL_Renderer *renderer, TTF_Font *font, char const *text,
@@ -448,6 +481,57 @@ static void
 draw_prop(SDL_Renderer *renderer, SDL_Rect rect) {
     SDL_SetRenderDrawColor(renderer, 128, 128, 0, 255);
     SDL_RenderDrawRect(renderer, &rect);
+}
+
+typedef void (*DrawBg)(void *);
+
+static void
+draw_health_bar(SDL_Renderer *renderer, int x, int y,
+                int hp, int max_hp) {
+    float      ratio = (float)hp / (float)max_hp;
+    SDL_Rect   bar   = {x - 20, y - 52, 40, 5};
+    SDL_SetRenderDrawColor(renderer, 128, 128, 128, 255);
+    SDL_RenderFillRect(renderer, &bar);
+    SDL_Rect fill = {bar.x, bar.y, (int)(40.0f * ratio), 5};
+    SDL_Color color = {0, 255, 0, 255};
+    if (ratio < 0.25f) {
+        color = (SDL_Color){255, 0, 0, 255};
+    } else if (ratio < 0.5f) {
+        color = (SDL_Color){255, 255, 0, 255};
+    }
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 255);
+    SDL_RenderFillRect(renderer, &fill);
+}
+
+static void
+float_number(SDL_Renderer *renderer, TTF_Font *font, char const *lines[],
+             int line_count, char const *text, SDL_Color color, SDL_Point pos,
+             DrawBg draw_bg, void *ctx) {
+    for (int i = 0; i < 30; ++i) {
+        SDL_Event e;
+        while (SDL_PollEvent(&e)) {
+            if (e.type == SDL_QUIT) {
+                exit(0);
+            }
+        }
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        if (draw_bg) {
+            draw_bg(ctx);
+        }
+        draw_text_box(renderer, font, lines, line_count, NULL, NULL, NULL);
+        SDL_Texture *num = render_text(renderer, font, text, color);
+        if (num) {
+            SDL_Rect dst = {pos.x, pos.y - i, 0, 0};
+            SDL_QueryTexture(num, NULL, NULL, &dst.w, &dst.h);
+            dst.x -= dst.w / 2;
+            dst.y -= dst.h / 2;
+            SDL_RenderCopy(renderer, num, NULL, &dst);
+            SDL_DestroyTexture(num);
+        }
+        SDL_RenderPresent(renderer);
+        SDL_Delay(16);
+    }
 }
 
 static void
@@ -746,6 +830,294 @@ show_party_menu(SDL_Renderer *renderer, TTF_Font *font, Player *player) {
     }
 }
 
+typedef struct {
+    bool      is_player;
+    char      _pad[7];
+    Npc      *npc;
+} Fighter;
+
+typedef struct {
+    SDL_Renderer *renderer;
+    Fighter      *fighters;
+    int          *hp;
+    int          *max_hp;
+    SDL_Point    *pos;
+    Player       *player;
+    int           count;
+    char          _pad[4];
+} FightCtx;
+
+static void
+draw_fight(void *data) {
+    FightCtx *ctx = data;
+    for (int i = 0; i < ctx->count; ++i) {
+        if (ctx->hp[i] <= 0) {
+            continue;
+        }
+        int x = ctx->pos[i].x;
+        int y = ctx->pos[i].y;
+        if (ctx->fighters[i].is_player) {
+            switch (ctx->player->info->id) {
+            case CLASS_FIGHTER:
+                draw_warrior(ctx->renderer, x, y);
+                break;
+            case CLASS_ROGUE:
+                draw_rogue(ctx->renderer, x, y);
+                break;
+            case CLASS_MAGE:
+                draw_mage(ctx->renderer, x, y);
+                break;
+            case CLASS_HEALER:
+                draw_cleric(ctx->renderer, x, y);
+                break;
+            case CLASS_BEAST:
+                draw_familiar(ctx->renderer, x, y);
+                break;
+            case CLASS_DEMON:
+                draw_imp(ctx->renderer, x, y);
+                break;
+            }
+        } else {
+            ctx->fighters[i].npc->draw(ctx->renderer, x, y);
+        }
+        draw_health_bar(ctx->renderer, x, y, ctx->hp[i], ctx->max_hp[i]);
+    }
+}
+
+static bool
+combat_encounter(SDL_Renderer *renderer, TTF_Font *font, Player *player,
+                 Npc **enemies, int enemy_count) {
+    Fighter   fighters[MAX_COMBATANTS];
+    SDL_Point pos[MAX_COMBATANTS];
+    int       hp[MAX_COMBATANTS];
+    int       max_hp[MAX_COMBATANTS];
+
+    int ally_count = 1 + player->companion_count;
+    int total      = ally_count + enemy_count;
+
+    fighters[0] = (Fighter){true, {0}, NULL};
+    pos[0]      = (SDL_Point){100, 300};
+    hp[0]       = player->info->attributes.hp;
+    max_hp[0]   = player->info->attributes.hp;
+
+    for (int i = 0; i < player->companion_count; ++i) {
+        fighters[1 + i] = (Fighter){false, {0}, player->companions[i]};
+        pos[1 + i]       = (SDL_Point){100, 240 - i * 60};
+        hp[1 + i]        = fighters[1 + i].npc->info->attributes.hp;
+        max_hp[1 + i]    = fighters[1 + i].npc->info->attributes.hp;
+    }
+
+    for (int i = 0; i < enemy_count; ++i) {
+        fighters[ally_count + i] = (Fighter){false, {0}, enemies[i]};
+        pos[ally_count + i]      = (SDL_Point){500, 300 - i * 60};
+        hp[ally_count + i]       = enemies[i]->info->attributes.hp;
+        max_hp[ally_count + i]   = enemies[i]->info->attributes.hp;
+    }
+
+    FightCtx ctx = {renderer, fighters, hp, max_hp, pos, player, total, {0}};
+
+    while (hp[0] > 0) {
+        bool enemy_alive = false;
+        for (int i = ally_count; i < total; ++i) {
+            if (hp[i] > 0) {
+                enemy_alive = true;
+                break;
+            }
+        }
+        if (!enemy_alive) {
+            char const *msg[] = {"You are victorious!"};
+            show_message(renderer, font, msg, 1);
+            return true;
+        }
+
+        int order[MAX_COMBATANTS];
+        int score[MAX_COMBATANTS];
+        for (int i = 0; i < total; ++i) {
+            order[i] = i;
+            if (fighters[i].is_player) {
+                score[i] = attr_value(&player->info->attributes,
+                                      attack_attr[player->info->id]) +
+                           (rand() % 3);
+            } else {
+                score[i] = attr_value(&fighters[i].npc->info->attributes,
+                                      attack_attr[fighters[i].npc->info->id]) +
+                           (rand() % 3);
+            }
+        }
+        for (int i = 0; i < total - 1; ++i) {
+            for (int j = i + 1; j < total; ++j) {
+                if (score[order[i]] < score[order[j]]) {
+                    int t   = order[i];
+                    order[i] = order[j];
+                    order[j] = t;
+                }
+            }
+        }
+
+        for (int oi = 0; oi < total; ++oi) {
+            int idx = order[oi];
+            if (hp[idx] <= 0) {
+                continue;
+            }
+            if (hp[0] <= 0) {
+                break;
+            }
+
+            SDL_Event e;
+            while (SDL_PollEvent(&e)) {
+                if (e.type == SDL_QUIT) {
+                    exit(0);
+                }
+            }
+
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+            SDL_RenderClear(renderer);
+            draw_fight(&ctx);
+            SDL_RenderPresent(renderer);
+            SDL_Delay(16);
+
+            if (idx == 0) {
+                char const *opts[4];
+                for (int i = 0; i < player->info->ability_count; ++i) {
+                    opts[i] = player->info->abilities[i].name;
+                }
+                NpcDraw face_draw;
+                switch (player->info->id) {
+                case CLASS_FIGHTER:
+                    face_draw = draw_warrior;
+                    break;
+                case CLASS_ROGUE:
+                    face_draw = draw_rogue;
+                    break;
+                case CLASS_MAGE:
+                    face_draw = draw_mage;
+                    break;
+                case CLASS_HEALER:
+                    face_draw = draw_cleric;
+                    break;
+                case CLASS_BEAST:
+                    face_draw = draw_familiar;
+                    break;
+                case CLASS_DEMON:
+                    face_draw = draw_imp;
+                    break;
+                }
+                SDL_Texture *face = make_face(renderer, face_draw);
+                int abidx = menu_prompt(renderer, font, "Choose action", opts,
+                                       player->info->ability_count, player->name,
+                                       face);
+                SDL_DestroyTexture(face);
+                Ability const *ab = &player->info->abilities[abidx];
+                int targets[MAX_COMBATANTS];
+                int tcount = 0;
+                if (strcmp(ab->target, "enemy") == 0) {
+                    for (int i = ally_count; i < total; ++i) {
+                        if (hp[i] > 0) {
+                            targets[tcount++] = i;
+                        }
+                    }
+                } else {
+                    for (int i = 0; i < ally_count; ++i) {
+                        if (hp[i] > 0) {
+                            targets[tcount++] = i;
+                        }
+                    }
+                }
+                int tidx = 0;
+                if (tcount > 1) {
+                    char const *names[4];
+                    for (int i = 0; i < tcount; ++i) {
+                        if (targets[i] == 0) {
+                            names[i] = player->name;
+                        } else {
+                            names[i] = fighters[targets[i]].npc->name;
+                        }
+                    }
+                    tidx = menu_prompt(renderer, font, "Choose target", names,
+                                       tcount, NULL, NULL);
+                }
+                int target = targets[tidx];
+                Attributes const *aatr = fighters[idx].is_player
+                                              ? &player->info->attributes
+                                              : &fighters[idx].npc->info->attributes;
+                Attributes const *datr = (target == 0)
+                                              ? &player->info->attributes
+                                              : &fighters[target].npc->info->attributes;
+                int attack_val = ab->power +
+                                attr_value(aatr, attack_attr[player->info->id]);
+                int defense_val =
+                    attr_value(datr,
+                               defense_attr[fighters[target].is_player
+                                               ? player->info->id
+                                               : fighters[target].npc->info->id]);
+                int dmg = attack_val - defense_val / 2;
+                if (dmg < 1) {
+                    dmg = 1;
+                }
+                char const *msg[] = {""};
+                char        num[16];
+                if (strcmp(ab->target, "enemy") == 0) {
+                    hp[target] -= dmg;
+                    snprintf(num, sizeof(num), "-%d", dmg);
+                    float_number(renderer, font, msg, 0, num,
+                                 (SDL_Color){255, 255, 255, 255}, pos[target],
+                                 draw_fight, &ctx);
+                } else {
+                    if (hp[target] + dmg > max_hp[target]) {
+                        dmg = max_hp[target] - hp[target];
+                    }
+                    hp[target] += dmg;
+                    snprintf(num, sizeof(num), "+%d", dmg);
+                    float_number(renderer, font, msg, 0, num,
+                                 (SDL_Color){0, 255, 0, 255}, pos[target],
+                                 draw_fight, &ctx);
+                }
+            } else {
+                Fighter *actor = &fighters[idx];
+                Ability const *ab = &actor->npc->info->abilities[0];
+                int target = (idx >= ally_count) ? 0
+                                                : ally_count; /* first enemy */
+                while (target < total && hp[target] <= 0) {
+                    target++;
+                }
+                if (target >= total) {
+                    continue;
+                }
+                Attributes const *aatr = &actor->npc->info->attributes;
+                Attributes const *datr =
+                    (target == 0) ? &player->info->attributes
+                                  : &fighters[target].npc->info->attributes;
+                int attack_val = ab->power +
+                                attr_value(aatr, attack_attr[actor->npc->info->id]);
+                int defense_val =
+                    attr_value(datr,
+                               defense_attr[fighters[target].is_player
+                                               ? player->info->id
+                                               : fighters[target].npc->info->id]);
+                int dmg = attack_val - defense_val / 2;
+                if (dmg < 1) {
+                    dmg = 1;
+                }
+                char const *msg[] = {""};
+                char        num[16];
+                hp[target] -= dmg;
+                SDL_Color col = (idx >= ally_count)
+                                    ? (SDL_Color){255, 0, 0, 255}
+                                    : (SDL_Color){255, 255, 255, 255};
+                snprintf(num, sizeof(num), "-%d", dmg);
+                float_number(renderer, font, msg, 0, num, col, pos[target],
+                             draw_fight, &ctx);
+            }
+        }
+        if (hp[0] <= 0) {
+            break;
+        }
+    }
+    char const *msg[] = {"You were defeated..."};
+    show_message(renderer, font, msg, 1);
+    return false;
+}
+
 static char const *
 interaction_hint(Player const *player, Room const *room) {
     SDL_Rect pr = {player->x - 8, player->y - 48, 16, 48};
@@ -841,6 +1213,7 @@ int main(int argc, char *argv[]) {
         SDL_Quit();
         return 1;
     }
+    srand((unsigned)time(NULL));
 
     SDL_Window   *window   = NULL;
     SDL_Renderer *renderer = NULL;
@@ -986,9 +1359,28 @@ int main(int argc, char *argv[]) {
                                        current->npc[i].y - 48, 16, 48};
                         if (!current->npc[i].joined &&
                             SDL_HasIntersection(&pr, &nr)) {
-                            current->npc[i].dialog(renderer, font,
-                                                   &current->npc[i]);
-                            npc_join(&player, &current->npc[i]);
+                            if (current->npc[i].enemy) {
+                                Npc *encounter[4];
+                                int  ec = 0;
+                                for (int j = 0; j < current->npcs; ++j) {
+                                    if (current->npc[j].enemy &&
+                                        !current->npc[j].joined) {
+                                        encounter[ec++] = &current->npc[j];
+                                    }
+                                }
+                                if (combat_encounter(renderer, font, &player,
+                                                    encounter, ec)) {
+                                    for (int j = 0; j < ec; ++j) {
+                                        encounter[j]->joined = true;
+                                    }
+                                } else {
+                                    running = false;
+                                }
+                            } else {
+                                current->npc[i].dialog(renderer, font,
+                                                       &current->npc[i]);
+                                npc_join(&player, &current->npc[i]);
+                            }
                             handled = true;
                         }
                     }
