@@ -13,13 +13,15 @@
  * - Implement combat_encounter() for turn-based fights
  * - Support moving between rooms and interacting with objects
  * - Display a game_end summary after escaping
+ *
+ * FUTURE
  * - Use SDL_image to load textured sprites
  * - Add pathfinding for NPC movement
- * - Allow NPCs to be dismissed from the party
  * - Implement save/load functionality
  * - Add sound effects using SDL_mixer
  * - Support gamepad input
  * - Display a mini map of explored rooms
+ * - Assign weapons and armor in the party menu
  */
 
 typedef struct {
