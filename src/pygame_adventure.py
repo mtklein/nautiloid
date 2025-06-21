@@ -16,6 +16,7 @@ class Ability:
     name: str
     target: str  # "enemy" or "ally"
     power: int
+    melee: bool = False
 
 
 @dataclass
@@ -27,12 +28,18 @@ class Attributes:
 
 
 CLASS_ABILITIES: Dict[str, List[Ability]] = {
-    "Fighter": [Ability("Strike", "enemy", 3), Ability("Power Attack", "enemy", 5)],
-    "Rogue": [Ability("Stab", "enemy", 3), Ability("Sneak Attack", "enemy", 4)],
+    "Fighter": [
+        Ability("Strike", "enemy", 3, True),
+        Ability("Power Attack", "enemy", 5, True),
+    ],
+    "Rogue": [
+        Ability("Stab", "enemy", 3, True),
+        Ability("Sneak Attack", "enemy", 4, True),
+    ],
     "Mage": [Ability("Firebolt", "enemy", 4), Ability("Barrier", "ally", 3)],
-    "Healer": [Ability("Smite", "enemy", 3), Ability("Heal", "ally", 4)],
-    "Beast": [Ability("Bite", "enemy", 2), Ability("Encourage", "ally", 2)],
-    "Demon": [Ability("Claw", "enemy", 2)],
+    "Healer": [Ability("Smite", "enemy", 3, True), Ability("Heal", "ally", 4)],
+    "Beast": [Ability("Bite", "enemy", 2, True), Ability("Encourage", "ally", 2)],
+    "Demon": [Ability("Claw", "enemy", 2, True)],
 }
 
 CLASS_ATTRIBUTES: Dict[str, Attributes] = {
@@ -106,6 +113,20 @@ def draw_imp(screen: pygame.Surface, x: int, y: int) -> None:
     pygame.draw.line(screen, pygame.Color("black"), (x + 4, y - 16), (x + 2, y - 20), 2)
 
 
+def draw_rogue(screen: pygame.Surface, x: int, y: int) -> None:
+    """Humanoid sprite with a dagger and hood."""
+    draw_humanoid(screen, x, y, pygame.Color("forestgreen"))
+    pygame.draw.rect(screen, pygame.Color("darkgreen"), pygame.Rect(x - 6, y - 48, 12, 8))
+    pygame.draw.line(screen, pygame.Color("silver"), (x + 6, y - 20), (x + 10, y - 30), 2)
+
+
+def draw_mage(screen: pygame.Surface, x: int, y: int) -> None:
+    """Humanoid sprite with a staff."""
+    draw_humanoid(screen, x, y, pygame.Color("navy"))
+    pygame.draw.line(screen, pygame.Color("sienna"), (x + 6, y - 20), (x + 6, y - 40), 2)
+    pygame.draw.circle(screen, pygame.Color("sienna"), (x + 6, y - 42), 3)
+
+
 def draw_chest(screen: pygame.Surface, rect: pygame.Rect, opened: bool) -> None:
     pygame.draw.rect(screen, pygame.Color("sienna"), rect, 2)
     if opened:
@@ -116,6 +137,11 @@ def draw_chest(screen: pygame.Surface, rect: pygame.Rect, opened: bool) -> None:
 def draw_door(screen: pygame.Surface, rect: pygame.Rect) -> None:
     pygame.draw.rect(screen, pygame.Color("gray"), rect, 2)
     pygame.draw.line(screen, pygame.Color("gray"), (rect.centerx, rect.top), (rect.centerx, rect.bottom), 2)
+
+
+def draw_prop(screen: pygame.Surface, rect: pygame.Rect) -> None:
+    """Simple decorative prop."""
+    pygame.draw.rect(screen, pygame.Color("olive"), rect, 1)
 
 
 def draw_room_bounds(screen: pygame.Surface, shape: str) -> None:
@@ -149,14 +175,18 @@ def draw_gradient_rect(surface: pygame.Surface, rect: pygame.Rect, top: pygame.C
 
 def get_face_surface(npc: NPC) -> pygame.Surface:
     surf = pygame.Surface((32, 48), pygame.SRCALPHA)
-    if npc.name == "Warrior":
-        draw_warrior(surf, 16, 48)
-    elif npc.name == "Cleric":
-        draw_cleric(surf, 16, 48)
-    elif npc.name == "Familiar":
+    if npc.name == "Familiar":
         draw_familiar(surf, 16, 24)
     elif npc.name == "Imp":
         draw_imp(surf, 16, 24)
+    elif npc.char_class == "Fighter":
+        draw_warrior(surf, 16, 48)
+    elif npc.char_class == "Healer":
+        draw_cleric(surf, 16, 48)
+    elif npc.char_class == "Rogue":
+        draw_rogue(surf, 16, 48)
+    elif npc.char_class == "Mage":
+        draw_mage(surf, 16, 48)
     else:
         draw_humanoid(surf, 16, 48, npc.color)
     return surf
@@ -207,14 +237,18 @@ class NPC:
         return pygame.Rect(self.x - 8, self.y - 48, 16, 48)
 
     def draw(self, screen: pygame.Surface) -> None:
-        if self.name == "Warrior":
-            draw_warrior(screen, self.x, self.y)
-        elif self.name == "Cleric":
-            draw_cleric(screen, self.x, self.y)
-        elif self.name == "Familiar":
+        if self.name == "Familiar":
             draw_familiar(screen, self.x, self.y)
         elif self.name == "Imp":
             draw_imp(screen, self.x, self.y)
+        elif self.char_class == "Fighter":
+            draw_warrior(screen, self.x, self.y)
+        elif self.char_class == "Healer":
+            draw_cleric(screen, self.x, self.y)
+        elif self.char_class == "Rogue":
+            draw_rogue(screen, self.x, self.y)
+        elif self.char_class == "Mage":
+            draw_mage(screen, self.x, self.y)
         else:
             draw_humanoid(screen, self.x, self.y, self.color)
 
@@ -361,6 +395,15 @@ class Chest:
 
 
 @dataclass
+class Prop:
+    rect: pygame.Rect
+    desc: str
+
+    def draw(self, screen: pygame.Surface) -> None:
+        draw_prop(screen, self.rect)
+
+
+@dataclass
 class Door:
     rect: pygame.Rect
     dest: str
@@ -385,7 +428,14 @@ class Player:
         return pygame.Rect(self.x - 8, self.y - 48, 16, 48)
 
     def draw(self, screen: pygame.Surface) -> None:
-        draw_humanoid(screen, self.x, self.y, pygame.Color("white"))
+        if self.char_class == "Fighter":
+            draw_warrior(screen, self.x, self.y)
+        elif self.char_class == "Rogue":
+            draw_rogue(screen, self.x, self.y)
+        elif self.char_class == "Mage":
+            draw_mage(screen, self.x, self.y)
+        else:
+            draw_humanoid(screen, self.x, self.y, pygame.Color("white"))
 
 
 def update_companions(player: Player) -> None:
@@ -426,92 +476,116 @@ def float_number(
         clock.tick(60)
 
 
-def combat(screen: pygame.Surface, font: pygame.font.Font, player: Player, enemy: NPC) -> bool:
-    """Simple turn-based combat. Returns True if player wins."""
-    p_hp = player.attributes.hp
-    e_hp = enemy.attributes.hp
+def draw_health_bar(screen: pygame.Surface, pos: tuple[int, int], hp: int, max_hp: int) -> None:
+    """Render a simple health bar."""
+    ratio = hp / max_hp
+    color = pygame.Color("green")
+    if ratio < 0.25:
+        color = pygame.Color("red")
+    elif ratio < 0.5:
+        color = pygame.Color("yellow")
+    bar_rect = pygame.Rect(pos[0] - 20, pos[1] - 52, 40, 5)
+    pygame.draw.rect(screen, pygame.Color("gray"), bar_rect)
+    fill = pygame.Rect(bar_rect.x, bar_rect.y, int(40 * ratio), 5)
+    pygame.draw.rect(screen, color, fill)
+
+
+def combat_encounter(screen: pygame.Surface, font: pygame.font.Font, player: Player, enemies: List[NPC]) -> bool:
+    """Group combat encounter. Returns True if player wins."""
+    allies: List[NPC | Player] = [player] + player.companions
+    combatants: List[NPC | Player] = allies + enemies
+    hp: Dict[NPC | Player, int] = {c: c.attributes.hp for c in combatants}
+
+    positions: Dict[NPC | Player, tuple[int, int]] = {}
+    for i, ally in enumerate(allies):
+        positions[ally] = (100, 300 - i * 60)
+    for i, enemy in enumerate(enemies):
+        positions[enemy] = (500, 300 - i * 60)
+
     clock = pygame.time.Clock()
-    turn_player = True
-    while p_hp > 0 and e_hp > 0:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
 
-        screen.fill((0, 0, 0))
-        info = [f"{player.name}: {p_hp} HP", f"{enemy.name}: {e_hp} HP"]
-        draw_text_box(screen, font, info)
-        pygame.display.flip()
-        clock.tick(30)
+    while hp[player] > 0 and any(hp[e] > 0 for e in enemies):
+        order = sorted(combatants, key=lambda c: (c.attributes.agility + random.randint(0, 2)), reverse=True)
 
-        if turn_player:
-            idx = menu_prompt(
-                screen,
-                font,
-                "Choose action",
-                [ab.name for ab in player.abilities],
-                player.name,
-                get_face_surface(NPC(player.name, pygame.Color("white"), 0, 0)),
-            )
-            ability = player.abilities[idx]
-            atk_attr = ATTACK_ATTRIBUTE.get(player.char_class, "strength")
-            def_attr = DEFENSE_ATTRIBUTE.get(enemy.char_class, "strength")
-            if ability.target == "enemy":
-                attack_val = ability.power + getattr(player.attributes, atk_attr)
-                defense_val = getattr(enemy.attributes, def_attr)
+        for actor in order:
+            if hp[player] <= 0 or not any(hp[e] > 0 for e in enemies):
+                break
+            if hp[actor] <= 0:
+                continue
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+
+            screen.fill((0, 0, 0))
+            for combatant in combatants:
+                if hp[combatant] > 0:
+                    x, y = positions[combatant]
+                    combatant.draw(screen)
+                    draw_health_bar(screen, (x, y), hp[combatant], combatant.attributes.hp)
+            pygame.display.flip()
+            clock.tick(30)
+
+            if actor is player:
+                idx = menu_prompt(
+                    screen,
+                    font,
+                    "Choose action",
+                    [ab.name for ab in player.abilities],
+                    player.name,
+                    get_face_surface(player),
+                )
+                ability = player.abilities[idx]
+                targets = enemies if ability.target == "enemy" else allies
+                living = [t for t in targets if hp[t] > 0]
+                tnames = [t.name for t in living]
+                tidx = 0 if len(living) == 1 else menu_prompt(screen, font, "Choose target", tnames)
+                target = living[tidx]
+
+                if ability.melee:
+                    dx = positions[target][0] - positions[actor][0]
+                    if abs(dx) > 120:
+                        show_message(screen, font, ["Too far away!"])
+                        continue
+                atk_attr = ATTACK_ATTRIBUTE.get(actor.char_class, "strength")
+                def_attr = DEFENSE_ATTRIBUTE.get(target.char_class, "strength")
+                attack_val = ability.power + getattr(actor.attributes, atk_attr)
+                defense_val = getattr(target.attributes, def_attr)
                 dmg = max(1, attack_val - defense_val // 2)
-                critical = False
                 if random.random() < 0.1:
                     dmg *= 2
-                    critical = True
-                e_hp -= dmg
-                show_message(screen, font, [f"{player.name} uses {ability.name}!"])
-                color = pygame.Color("red") if critical else pygame.Color("white")
-                float_number(
-                    screen,
-                    font,
-                    [f"{player.name}: {p_hp} HP", f"{enemy.name}: {e_hp} HP"],
-                    f"-{dmg}",
-                    color,
-                    (460, 220),
-                )
+                if ability.target == "enemy":
+                    hp[target] -= dmg
+                    float_number(screen, font, [f"{actor.name} uses {ability.name}!"], f"-{dmg}", pygame.Color("white"), positions[target])
+                else:
+                    hp[target] = min(target.attributes.hp, hp[target] + dmg)
+                    float_number(screen, font, [f"{actor.name} uses {ability.name}!"], f"+{dmg}", pygame.Color("green"), positions[target])
             else:
-                heal = ability.power + getattr(player.attributes, atk_attr) // 2
-                p_hp = min(player.attributes.hp, p_hp + heal)
-                show_message(screen, font, [f"{player.name} uses {ability.name}!"])
-                float_number(
-                    screen,
-                    font,
-                    [f"{player.name}: {p_hp} HP", f"{enemy.name}: {e_hp} HP"],
-                    f"+{heal}",
-                    pygame.Color("green"),
-                    (180, 220),
-                )
-        else:
-            ability = enemy.abilities[0] if enemy.abilities else Ability("Attack", "enemy", 2)
-            atk_attr = ATTACK_ATTRIBUTE.get(enemy.char_class, "strength")
-            def_attr = DEFENSE_ATTRIBUTE.get(player.char_class, "strength")
-            attack_val = ability.power + getattr(enemy.attributes, atk_attr)
-            defense_val = getattr(player.attributes, def_attr)
-            dmg = max(1, attack_val - defense_val // 2)
-            critical = False
-            if random.random() < 0.1:
-                dmg *= 2
-                critical = True
-            p_hp -= dmg
-            show_message(screen, font, [f"{enemy.name} attacks!"])
-            color = pygame.Color("red") if critical else pygame.Color("white")
-            float_number(
-                screen,
-                font,
-                [f"{player.name}: {p_hp} HP", f"{enemy.name}: {e_hp} HP"],
-                f"-{dmg}",
-                color,
-                (180, 220),
-            )
-        turn_player = not turn_player
+                if actor in enemies:
+                    ability = actor.abilities[0] if actor.abilities else Ability("Attack", "enemy", 2, True)
+                    target = player
+                    atk_attr = ATTACK_ATTRIBUTE.get(actor.char_class, "strength")
+                    def_attr = DEFENSE_ATTRIBUTE.get(target.char_class, "strength")
+                    attack_val = ability.power + getattr(actor.attributes, atk_attr)
+                    defense_val = getattr(target.attributes, def_attr)
+                    dmg = max(1, attack_val - defense_val // 2)
+                    hp[target] -= dmg
+                    float_number(screen, font, [f"{actor.name} attacks!"], f"-{dmg}", pygame.Color("red"), positions[target])
+                else:  # companion
+                    ability = actor.abilities[0] if actor.abilities else Ability("Strike", "enemy", 2, True)
+                    target = next((e for e in enemies if hp[e] > 0), None)
+                    if not target:
+                        continue
+                    atk_attr = ATTACK_ATTRIBUTE.get(actor.char_class, "strength")
+                    def_attr = DEFENSE_ATTRIBUTE.get(target.char_class, "strength")
+                    attack_val = ability.power + getattr(actor.attributes, atk_attr)
+                    defense_val = getattr(target.attributes, def_attr)
+                    dmg = max(1, attack_val - defense_val // 2)
+                    hp[target] -= dmg
+                    float_number(screen, font, [f"{actor.name} attacks!"], f"-{dmg}", pygame.Color("white"), positions[target])
 
-    if p_hp > 0:
+    if hp[player] > 0:
         show_message(screen, font, ["You are victorious!"])
         return True
     else:
@@ -524,6 +598,7 @@ class Room:
     name: str
     npcs: List[NPC]
     chests: List[Chest]
+    props: List[Prop]
     doors: List[Door]
     shape: str = "square"
 
@@ -548,6 +623,7 @@ def create_rooms() -> Dict[str, Room]:
             )
         ],
         [],
+        [Prop(pygame.Rect(260, 260, 20, 20), "A broken glass pod")],
         [Door(pygame.Rect(600, 220, 40, 40), "Corridor")],
         "circle",
     )
@@ -556,6 +632,7 @@ def create_rooms() -> Dict[str, Room]:
         "Corridor",
         [],
         [],
+        [Prop(pygame.Rect(320, 240, 16, 16), "A flickering wall torch")],
         [
             Door(pygame.Rect(40, 220, 40, 40), "Pod Room"),
             Door(pygame.Rect(300, 60, 40, 40), "Brig"),
@@ -592,8 +669,33 @@ def create_rooms() -> Dict[str, Room]:
                 CLASS_ABILITIES["Demon"].copy(),
                 CLASS_ATTRIBUTES["Demon"],
             ),
+            NPC(
+                "Imp",
+                pygame.Color("red"),
+                300,
+                200,
+                None,
+                False,
+                True,
+                "Demon",
+                CLASS_ABILITIES["Demon"].copy(),
+                CLASS_ATTRIBUTES["Demon"],
+            ),
+            NPC(
+                "Imp",
+                pygame.Color("red"),
+                340,
+                260,
+                None,
+                False,
+                True,
+                "Demon",
+                CLASS_ABILITIES["Demon"].copy(),
+                CLASS_ATTRIBUTES["Demon"],
+            ),
         ],
-        [],
+        [Chest(pygame.Rect(280, 240, 32, 24), "an iron sword", "brig_sword")],
+        [Prop(pygame.Rect(360, 260, 16, 16), "Chains hang from the wall")],
         [Door(pygame.Rect(300, 380, 40, 40), "Corridor")],
         "square",
     )
@@ -601,7 +703,19 @@ def create_rooms() -> Dict[str, Room]:
     rooms["Storage"] = Room(
         "Storage",
         [],
-        [Chest(pygame.Rect(320, 240, 32, 24), "a healing salve", "storage_chest_opened")],
+        [
+            Chest(
+                pygame.Rect(320, 240, 32, 24),
+                "a healing salve",
+                "storage_chest_opened",
+            ),
+            Chest(
+                pygame.Rect(360, 240, 32, 24),
+                "leather armor",
+                "storage_armor",
+            ),
+        ],
+        [Prop(pygame.Rect(300, 300, 20, 20), "Crates of supplies")],
         [Door(pygame.Rect(300, 60, 40, 40), "Corridor")],
         "tall",
     )
@@ -620,9 +734,34 @@ def create_rooms() -> Dict[str, Room]:
                 "Healer",
                 CLASS_ABILITIES["Healer"].copy(),
                 CLASS_ATTRIBUTES["Healer"],
-            )
+            ),
+            NPC(
+                "Cultist",
+                pygame.Color("purple"),
+                380,
+                200,
+                None,
+                False,
+                True,
+                "Mage",
+                CLASS_ABILITIES["Mage"].copy(),
+                CLASS_ATTRIBUTES["Mage"],
+            ),
+            NPC(
+                "Acolyte",
+                pygame.Color("purple"),
+                260,
+                200,
+                None,
+                False,
+                True,
+                "Rogue",
+                CLASS_ABILITIES["Rogue"].copy(),
+                CLASS_ATTRIBUTES["Rogue"],
+            ),
         ],
-        [],
+        [Chest(pygame.Rect(320, 300, 32, 24), "mystic staff", "control_staff")],
+        [Prop(pygame.Rect(320, 180, 20, 20), "A glowing altar")],
         [
             Door(pygame.Rect(40, 220, 40, 40), "Corridor"),
             Door(pygame.Rect(600, 220, 40, 40), "Escape Pod"),
@@ -632,6 +771,7 @@ def create_rooms() -> Dict[str, Room]:
 
     rooms["Escape Pod"] = Room(
         "Escape Pod",
+        [],
         [],
         [],
         [],
@@ -706,14 +846,27 @@ def main() -> None:
                         chest.opened = True
                         player.inventory.append(chest.item)
                         player.flags[chest.flag] = True
+                        if chest.item == "an iron sword":
+                            player.attributes.strength += 2
+                        if chest.item == "leather armor":
+                            player.attributes.hp += 2
+                        if chest.item == "mystic staff":
+                            player.attributes.wisdom += 2
                         show_message(screen, font, [f"You find {chest.item}!"])
+                        break
+                # props
+                for prop in current.props:
+                    if pr.colliderect(prop.rect):
+                        show_message(screen, font, [prop.desc])
                         break
                 # npcs and enemies
                 for npc in current.npcs:
                     if pr.colliderect(npc.rect()):
                         if npc.enemy and not npc.joined:
-                            if combat(screen, font, player, npc):
-                                npc.joined = True  # mark as defeated
+                            encounter = [e for e in current.npcs if e.enemy and not e.joined]
+                            if combat_encounter(screen, font, player, encounter):
+                                for e in encounter:
+                                    e.joined = True
                             else:
                                 running = False
                             break
@@ -743,6 +896,8 @@ def main() -> None:
             door.draw(screen)
         for chest in current.chests:
             chest.draw(screen)
+        for prop in current.props:
+            prop.draw(screen)
         for npc in current.npcs:
             if not npc.joined:
                 npc.draw(screen)
