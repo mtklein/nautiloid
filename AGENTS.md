@@ -22,3 +22,5 @@
   out, but avoid marking pointers themselves `const` unless necessary.
 
 - Omit defensive bounds or null checks for internal code; sanitizers will catch these bugs.
+- Focus on matching `pygame_adventure.py` when completing TODO items. Put ideas
+  unrelated to feature parity in the FUTURE list.

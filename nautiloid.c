@@ -8,7 +8,6 @@
 /*
  * TODO: port features from pygame_adventure.py
  * - Implement create_rooms() to mirror Python rooms
- * - Add face drawing and speaker options to the UI helpers
  * - Show floating damage numbers and health bars
  * - Implement combat_encounter() for turn-based fights
  * - Support moving between rooms and interacting with objects
@@ -22,6 +21,7 @@
  * - Support gamepad input
  * - Display a mini map of explored rooms
  * - Assign weapons and armor in the party menu
+ * - Cache face textures for NPCs to avoid recreating them
  */
 
 typedef struct {
@@ -117,7 +117,7 @@ typedef struct {
 } Door;
 
 typedef void (*NpcDraw)(SDL_Renderer *, int, int);
-typedef void (*NpcDialog)(SDL_Renderer *, TTF_Font *);
+typedef void (*NpcDialog)(SDL_Renderer *, TTF_Font *, struct Npc *);
 
 typedef struct Npc {
     int               x;
@@ -241,6 +241,7 @@ draw_gradient_rect(SDL_Renderer *renderer, SDL_Rect rect,
 static void
 draw_text_box(SDL_Renderer *renderer, TTF_Font *font,
               char const *lines[], int line_count,
+              char const *speaker, SDL_Texture *face,
               char const *footer) {
     int   width  = 0;
     int   height = 0;
@@ -255,6 +256,18 @@ draw_text_box(SDL_Renderer *renderer, TTF_Font *font,
     SDL_RenderDrawRect(renderer, &rect);
 
     int y = rect.y + 10;
+    if (speaker) {
+        SDL_Texture *name =
+            render_text(renderer, font, speaker,
+                        (SDL_Color){255, 255, 255, 255});
+        if (name) {
+            SDL_Rect dst = {rect.x + 10, y, 0, 0};
+            SDL_QueryTexture(name, NULL, NULL, &dst.w, &dst.h);
+            SDL_RenderCopy(renderer, name, NULL, &dst);
+            SDL_DestroyTexture(name);
+        }
+        y += 30;
+    }
     for (int i = 0; i < line_count; ++i) {
         SDL_Texture *text =
             render_text(renderer, font, lines[i], (SDL_Color){255, 255, 255, 255});
@@ -265,6 +278,10 @@ draw_text_box(SDL_Renderer *renderer, TTF_Font *font,
             SDL_DestroyTexture(text);
         }
         y += 26;
+    }
+    if (face) {
+        SDL_Rect dst = {rect.x - 42, rect.y + 8, 32, 48};
+        SDL_RenderCopy(renderer, face, NULL, &dst);
     }
     if (footer) {
         SDL_Texture *text =
@@ -302,6 +319,7 @@ show_message(SDL_Renderer *renderer, TTF_Font *font,
             all[n++] = lines[i];
         }
         draw_text_box(renderer, font, all, n,
+                      NULL, NULL,
                       "Press SPACE or E to continue");
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
@@ -310,7 +328,8 @@ show_message(SDL_Renderer *renderer, TTF_Font *font,
 
 static int
 menu_prompt(SDL_Renderer *renderer, TTF_Font *font, char const *question,
-            char const *options[], int option_count) {
+            char const *options[], int option_count,
+            char const *speaker, SDL_Texture *face) {
     int choice = -1;
     char const *lines[10];
     SDL_Event    e;
@@ -334,7 +353,8 @@ menu_prompt(SDL_Renderer *renderer, TTF_Font *font, char const *question,
         }
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-        draw_text_box(renderer, font, lines, option_count + 1, NULL);
+        draw_text_box(renderer, font, lines, option_count + 1,
+                      speaker, face, NULL);
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
     }
@@ -413,6 +433,42 @@ draw_imp(SDL_Renderer *renderer, int x, int y) {
     SDL_RenderDrawLine(renderer, x + 4, y - 16, x + 2, y - 20);
 }
 
+static SDL_Texture *
+make_face(SDL_Renderer *renderer, NpcDraw draw) {
+    SDL_Texture *face = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
+                                          SDL_TEXTUREACCESS_TARGET, 32, 48);
+    SDL_SetTextureBlendMode(face, SDL_BLENDMODE_BLEND);
+    SDL_Texture *prev = SDL_GetRenderTarget(renderer);
+    SDL_SetRenderTarget(renderer, face);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+    SDL_RenderClear(renderer);
+    draw(renderer, 16, 48);
+    SDL_SetRenderTarget(renderer, prev);
+    return face;
+}
+
+static SDL_Texture *
+npc_face(SDL_Renderer *renderer, Npc const *npc) {
+    return make_face(renderer, npc->draw);
+}
+
+static SDL_Texture * __attribute__((unused))
+class_face(SDL_Renderer *renderer, ClassId id) {
+    NpcDraw draw = draw_warrior;
+    if (id == CLASS_ROGUE) {
+        draw = draw_rogue;
+    } else if (id == CLASS_MAGE) {
+        draw = draw_mage;
+    } else if (id == CLASS_HEALER) {
+        draw = draw_cleric;
+    } else if (id == CLASS_BEAST) {
+        draw = draw_familiar;
+    } else if (id == CLASS_DEMON) {
+        draw = draw_imp;
+    }
+    return make_face(renderer, draw);
+}
+
 static void
 draw_chest(SDL_Renderer *renderer, SDL_Rect rect, bool opened) {
     SDL_SetRenderDrawColor(renderer, 160, 82, 45, 255);
@@ -440,13 +496,15 @@ draw_prop(SDL_Renderer *renderer, SDL_Rect rect) {
 }
 
 static void
-familiar_dialog(SDL_Renderer *renderer, TTF_Font *font) {
+familiar_dialog(SDL_Renderer *renderer, TTF_Font *font, Npc *npc) {
+    SDL_Texture *face = NULL;
+    face = npc_face(renderer, npc);
     char const *opts[] = {"\"Who are you?\"",
                            "\"Will you help me escape?\"",
                            "\"Let's go.\""};
     while (1) {
         int idx = menu_prompt(renderer, font, "The familiar chirps softly.",
-                              opts, 3);
+                              opts, 3, npc->name, face);
         if (idx == 0) {
             char const *msg[] =
                 {"It chitters about being bound to the ship by foul magic."};
@@ -460,16 +518,18 @@ familiar_dialog(SDL_Renderer *renderer, TTF_Font *font) {
             break;
         }
     }
+    SDL_DestroyTexture(face);
 }
 
 static void
-cleric_dialog(SDL_Renderer *renderer, TTF_Font *font) {
+cleric_dialog(SDL_Renderer *renderer, TTF_Font *font, Npc *npc) {
+    SDL_Texture *face = npc_face(renderer, npc);
     char const *opts[] = {"\"What happened here?\"",
                            "\"Can you heal us?\"",
                            "\"Let's leave this ship.\""};
     while (1) {
         int idx = menu_prompt(renderer, font, "The cleric steadies her breath.",
-                              opts, 3);
+                              opts, 3, npc->name, face);
         if (idx == 0) {
             char const *msg[] =
                 {"'A ritual went terribly wrong,' she explains."};
@@ -485,10 +545,12 @@ cleric_dialog(SDL_Renderer *renderer, TTF_Font *font) {
             break;
         }
     }
+    SDL_DestroyTexture(face);
 }
 
 static void
-imp_dialog(SDL_Renderer *renderer, TTF_Font *font) {
+imp_dialog(SDL_Renderer *renderer, TTF_Font *font, Npc *npc) {
+    (void)npc;
     char const *msg[] = {"The imp hisses at you."};
     show_message(renderer, font, msg, 1);
 }
@@ -521,7 +583,7 @@ text_input(SDL_Renderer *renderer, TTF_Font *font, char const *prompt,
         char const *lines[2] = {prompt, buffer};
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-        draw_text_box(renderer, font, lines, 2, NULL);
+        draw_text_box(renderer, font, lines, 2, NULL, NULL, NULL);
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
     }
@@ -600,11 +662,12 @@ show_party_menu(SDL_Renderer *renderer, TTF_Font *font, Player *player) {
         options[i] = name_bufs[i];
     }
     int idx = menu_prompt(renderer, font, "Choose companion", options,
-                          player->companion_count);
+                          player->companion_count, NULL, NULL);
     char const *acts[] = {"Talk", "Dismiss", "Back"};
-    int action = menu_prompt(renderer, font, "Party action", acts, 3);
+    int action = menu_prompt(renderer, font, "Party action", acts, 3, NULL, NULL);
     if (action == 0) {
-        player->companions[idx]->dialog(renderer, font);
+        player->companions[idx]->dialog(renderer, font,
+                                        player->companions[idx]);
     } else if (action == 1) {
         npc_dismiss(player, idx);
     }
@@ -702,7 +765,7 @@ int main(int argc, char *argv[]) {
         class_names[i] = classes[i].name;
     }
     int class_idx = menu_prompt(renderer, font, "Choose a class", class_names,
-                                PLAYABLE_CLASS_COUNT);
+                                PLAYABLE_CLASS_COUNT, NULL, NULL);
     static char buffer[128];
     snprintf(buffer, sizeof(buffer), "Welcome %s the %s!", name,
              class_names[class_idx]);
@@ -761,13 +824,13 @@ int main(int argc, char *argv[]) {
                         show_message(renderer, font, msg, 1);
                     } else if (!npc[0].joined &&
                                SDL_HasIntersection(&pr, &familiar_rect)) {
-                        familiar_dialog(renderer, font);
+                        familiar_dialog(renderer, font, &npc[0]);
                         npc_join(&player, &npc[0]);
                     } else if (SDL_HasIntersection(&pr, &imp_rect)) {
-                        imp_dialog(renderer, font);
+                        imp_dialog(renderer, font, &npc[1]);
                     } else if (!npc[2].joined &&
                                SDL_HasIntersection(&pr, &cleric_rect)) {
-                        cleric_dialog(renderer, font);
+                        cleric_dialog(renderer, font, &npc[2]);
                         npc_join(&player, &npc[2]);
                     }
                 }
