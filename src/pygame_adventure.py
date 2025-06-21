@@ -1,4 +1,6 @@
 from __future__ import annotations
+# NOTE: This file is retained while features are ported to nautiloid.c.
+# It no longer receives updates.
 # Postpone evaluation of type hints so forward references like `NPC` work
 
 import sys
@@ -884,8 +886,8 @@ def main() -> None:
     clock = pygame.time.Clock()
 
     name = text_input(screen, font, "Enter your name:")
-    class_idx = menu_prompt(screen, font, "Choose a class", ["Fighter", "Rogue", "Mage"])
-    char_class = ["Fighter", "Rogue", "Mage"][class_idx]
+    class_idx = menu_prompt(screen, font, "Choose a class", ["Fighter", "Rogue", "Mage", "Healer"])
+    char_class = ["Fighter", "Rogue", "Mage", "Healer"][class_idx]
     player = Player(
         320,
         240,

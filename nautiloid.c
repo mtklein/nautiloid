@@ -51,6 +51,7 @@ typedef enum {
     CLASS_DEMON
 } ClassId;
 #define CLASS_COUNT (CLASS_DEMON + 1)
+#define PLAYABLE_CLASS_COUNT 4
 
 static inline int __attribute__((unused))
 attribute_value(Attributes const *attributes, AttrKind kind) {
@@ -602,12 +603,12 @@ int main(int argc, char *argv[]) {
 
     char name[64];
     text_input(renderer, font, "Enter your name:", name, (int)sizeof(name));
-    char const *class_names[CLASS_COUNT];
-    for (int i = 0; i < CLASS_COUNT; ++i) {
+    char const *class_names[PLAYABLE_CLASS_COUNT];
+    for (int i = 0; i < PLAYABLE_CLASS_COUNT; ++i) {
         class_names[i] = classes[i].name;
     }
-    int class_idx =
-        menu_prompt(renderer, font, "Choose a class", class_names, CLASS_COUNT);
+    int class_idx = menu_prompt(renderer, font, "Choose a class", class_names,
+                                PLAYABLE_CLASS_COUNT);
     static char buffer[128];
     snprintf(buffer, sizeof(buffer), "Welcome %s the %s!", name,
              class_names[class_idx]);
