@@ -1,7 +1,1 @@
-# Ignore build output
-out/
-
-# Ignore temporary files
-*.o
-*.d
-*.log
+out
